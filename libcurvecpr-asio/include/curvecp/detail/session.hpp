@@ -9,6 +9,9 @@
 
 #include <curvecp/detail/curvecpr.h>
 
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/strand.hpp>
+#include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
@@ -51,16 +54,29 @@ public:
   /**
    * Constructs an internal CurveCP session implementation.
    *
+   * @param service ASIO IO service
    * @param session_type Session type
-   * @param ready_read_handler Handler for ready read events
-   * @param ready_write_handler Handler for ready write events
    * @param lower_send_handler Handler for sending messages
    */
-  template <typename ReadReadyHandler, typename WriteReadyHandler, typename LowerSendHandler>
-  session(type session_type,
-          ReadReadyHandler ready_read_handler,
-          WriteReadyHandler ready_write_handler,
+  template <typename LowerSendHandler>
+  session(boost::asio::io_service &service,
+          type session_type,
           LowerSendHandler lower_send_handler);
+
+  /**
+   * Returns the ASIO strand that is allowed to call this session.
+   */
+  boost::asio::strand &get_strand() { return strand_; }
+
+  /**
+   * Schedules a handler to be executed after the session is ready for
+   * reading or writing.
+   *
+   * @param what Type of handler to install
+   * @param handler Handler that should be called when ready
+   */
+  template <typename Handler>
+  void async_pending_wait(want what, BOOST_ASIO_MOVE_ARG(Handler) handler);
 
   /**
    * Configures the maximum size of pending write buffer.
@@ -213,6 +229,8 @@ protected:
                          const unsigned char *buf,
                          size_t num);
 private:
+  /// Dispatch strand
+  boost::asio::strand strand_;
   /// Internal libcurvecpr messager handle
   curvecpr_messager messager_;
   /// Maximum size of pending write buffer
@@ -279,10 +297,10 @@ private:
   std::uint64_t recvmarkq_distributed_;
   /// Offset into the current read buffer
   std::size_t recvmarkq_read_offset_;
-  /// Ready read handler
-  std::function<void()> ready_read_handler_;
-  /// Ready write handler
-  std::function<void()> ready_write_handler_;
+  /// Pending ready read timer
+  boost::asio::deadline_timer pending_ready_read_;
+  /// Pending ready write timer
+  boost::asio::deadline_timer pending_ready_write_;
   /// Lower send handler
   std::function<bool(const unsigned char*, std::size_t)> lower_send_handler_;
 };

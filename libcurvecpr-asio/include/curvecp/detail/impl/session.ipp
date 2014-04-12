@@ -18,12 +18,12 @@ namespace detail {
 #define RECVMARKQ_ELEMENT_ACKNOWLEDGED (1 << 1)
 #define RECVMARKQ_ELEMENT_DONE (RECVMARKQ_ELEMENT_DISTRIBUTED | RECVMARKQ_ELEMENT_ACKNOWLEDGED)
 
-template <typename ReadReadyHandler, typename WriteReadyHandler, typename LowerSendHandler>
-session::session(type session_type,
-                 ReadReadyHandler ready_read_handler,
-                 WriteReadyHandler ready_write_handler,
+template <typename LowerSendHandler>
+session::session(boost::asio::io_service &service,
+                 type session_type,
                  LowerSendHandler lower_send_handler)
-  : pending_maximum_(65536),
+  : strand_(service),
+    pending_maximum_(65536),
     sendmarkq_maximum_(1024),
     recvmarkq_maximum_(1024),
     pending_eof_(false),
@@ -33,10 +33,13 @@ session::session(type session_type,
     sendq_head_exists_(false),
     recvmarkq_distributed_(0),
     recvmarkq_read_offset_(0),
-    ready_read_handler_(ready_read_handler),
-    ready_write_handler_(ready_write_handler),
+    pending_ready_read_(service),
+    pending_ready_write_(service),
     lower_send_handler_(lower_send_handler)
 {
+  pending_ready_read_.expires_at(boost::posix_time::pos_infin);
+  pending_ready_write_.expires_at(boost::posix_time::pos_infin);
+
   // Configure curvecpr messager handlers
   struct curvecpr_messager_cf messager_cf = {
     .ops = {
@@ -65,6 +68,16 @@ session::session(type session_type,
   curvecpr_messager_new(&messager_, &messager_cf, session_type == session::type::client ? 1 : 0);
 }
 
+template <typename Handler>
+void session::async_pending_wait(session::want what, BOOST_ASIO_MOVE_ARG(Handler) handler)
+{
+  switch (what) {
+    case session::want::read: pending_ready_read_.async_wait(strand_.wrap(handler)); break;
+    case session::want::write: pending_ready_write_.async_wait(strand_.wrap(handler)); break;
+    default: break;
+  }
+}
+
 bool session::is_finished() const
 {
   return messager_.my_final && messager_.their_final;
@@ -76,20 +89,16 @@ void session::finish()
     return;
 
   pending_eof_ = true;
-  if (ready_read_handler_)
-    ready_read_handler_();
-  if (ready_write_handler_)
-    ready_write_handler_();
+  pending_ready_read_.cancel();
+  pending_ready_write_.cancel();
 }
 
 void session::close()
 {
   // Finish the session first
   pending_eof_ = true;
-  if (ready_read_handler_)
-    ready_read_handler_();
-  if (ready_write_handler_)
-    ready_write_handler_();
+  pending_ready_read_.cancel();
+  pending_ready_write_.cancel();
 
   // Transmit EOF immediately
   process_send_queue();
@@ -272,8 +281,7 @@ int session::handle_sendq_head(struct curvecpr_messager *messager,
       }
 
       self->pending_used_ -= requested;
-      if (self->ready_write_handler_)
-        self->ready_write_handler_();
+      self->pending_ready_write_.cancel();
     }
 
     if (self->pending_used_ == 0 && self->pending_eof_)
@@ -404,8 +412,7 @@ int session::handle_recvmarkq_put(struct curvecpr_messager *messager,
   new_block->block = *block;
 
   self->recvmarkq_.insert(new_block);
-  if (self->ready_read_handler_)
-    self->ready_read_handler_();
+  self->pending_ready_read_.cancel();
 
   if (block_stored)
     *block_stored = &new_block->block;

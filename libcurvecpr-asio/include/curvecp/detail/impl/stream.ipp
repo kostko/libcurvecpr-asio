@@ -23,23 +23,16 @@ namespace detail {
 
 stream::stream(boost::asio::io_service &service)
   : socket_(service),
-    strand_(service),
     session_(
+      service,
       session::type::client,
-      boost::bind(&stream::handle_ready_read, this),
-      boost::bind(&stream::handle_ready_write, this),
       boost::bind(&stream::handle_upper_send, this, _1, _2)
     ),
     transmit_queue_maximum_(128),
     lower_recv_buffer_(65535),
     send_queue_timer_(service),
-    pending_ready_read_(service),
-    pending_ready_write_(service),
     hello_timed_out_(service)
 {
-  pending_ready_read_.expires_at(boost::posix_time::pos_infin);
-  pending_ready_write_.expires_at(boost::posix_time::pos_infin);
-
   struct curvecpr_client_cf client_cf;
   client_cf.ops.send = &stream::handle_send;
   client_cf.ops.recv = &stream::handle_recv;
@@ -103,7 +96,7 @@ void stream::connect(const endpoint_type &endpoint)
   socket_.connect(endpoint);
   socket_.async_receive(
     boost::asio::buffer(lower_recv_buffer_),
-    strand_.wrap(boost::bind(&stream::handle_lower_read, this,
+    session_.get_strand().wrap(boost::bind(&stream::handle_lower_read, this,
       boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred))
   );
 
@@ -122,16 +115,6 @@ void stream::async_io_operation(const Operation &op, Handler &handler)
   io_op<stream, Operation, Handler>(session_, *this, op, handler)(boost::system::error_code(), true);
 }
 
-template <typename Handler>
-void stream::async_pending_wait(session::want what, BOOST_ASIO_MOVE_ARG(Handler) handler)
-{
-  switch (what) {
-    case session::want::read: pending_ready_read_.async_wait(handler); break;
-    case session::want::write: pending_ready_write_.async_wait(handler); break;
-    default: break;
-  }
-}
-
 void stream::handle_hello_timeout(const boost::system::error_code &error)
 {
   if (error)
@@ -144,24 +127,12 @@ void stream::handle_hello_timeout(const boost::system::error_code &error)
   hello_timed_out_.async_wait(boost::bind(&stream::handle_hello_timeout, this, _1));
 }
 
-void stream::handle_ready_read()
-{
-  // Invoke pending ready read handler
-  pending_ready_read_.cancel();
-}
-
-void stream::handle_ready_write()
-{
-  // Invoke pending ready write handler
-  pending_ready_write_.cancel();
-}
-
 void stream::transmit_pending()
 {
   // Send the first item in the transmit queue
   socket_.async_send(
     boost::asio::buffer(&transmit_queue_.front()[0], transmit_queue_.front().size()),
-    strand_.wrap(boost::bind(&stream::handle_lower_write, this,
+    session_.get_strand().wrap(boost::bind(&stream::handle_lower_write, this,
       boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred))
   );
 }
@@ -193,7 +164,7 @@ void stream::handle_lower_read(const boost::system::error_code &error, std::size
 
   socket_.async_receive(
     boost::asio::buffer(lower_recv_buffer_),
-    strand_.wrap(boost::bind(&stream::handle_lower_read, this,
+    session_.get_strand().wrap(boost::bind(&stream::handle_lower_read, this,
       boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred))
   );
 }
@@ -212,7 +183,7 @@ void stream::handle_process_send_queue(const boost::system::error_code &error)
 void stream::reschedule_process_send_queue()
 {
   send_queue_timer_.expires_from_now(session_.get_next_send_timeout());
-  send_queue_timer_.async_wait(strand_.wrap(boost::bind(&stream::handle_process_send_queue, this, _1)));
+  send_queue_timer_.async_wait(session_.get_strand().wrap(boost::bind(&stream::handle_process_send_queue, this, _1)));
 }
 
 int stream::handle_send(struct curvecpr_client *client,

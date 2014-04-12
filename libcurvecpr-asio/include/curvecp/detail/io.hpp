@@ -50,7 +50,7 @@ public:
     if (!finished_) {
       session::want result = op_(session_, ec_, bytes_transferred_);
       if (result != session::want::nothing) {
-        stream_.async_pending_wait(result, BOOST_ASIO_MOVE_CAST(io_op)(*this));
+        session_.async_pending_wait(result, BOOST_ASIO_MOVE_CAST(io_op)(*this));
         return;
       }
 

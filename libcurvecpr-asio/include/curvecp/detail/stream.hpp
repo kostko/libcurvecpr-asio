@@ -126,16 +126,6 @@ public:
    */
   template <typename Operation, typename Handler>
   void async_io_operation(const Operation &op, Handler &handler);
-
-  /**
-   * Schedules a handler to be executed after the stream is ready for
-   * reading or writing.
-   *
-   * @param what Type of handler to install
-   * @param handler Handler that should be called when ready
-   */
-  template <typename Handler>
-  void async_pending_wait(session::want what, BOOST_ASIO_MOVE_ARG(Handler) handler);
 protected:
   bool handle_upper_send(const unsigned char *buffer, std::size_t length);
 
@@ -180,8 +170,6 @@ private:
   boost::asio::ip::udp::socket socket_;
   /// Client packet processor
   curvecpr_client client_;
-  /// Dispatch strand
-  boost::asio::strand strand_;
   /// Session
   session session_;
   /// Transmit queue
@@ -192,10 +180,6 @@ private:
   std::vector<unsigned char> lower_recv_buffer_;
   /// Send queue processing timer
   boost::asio::deadline_timer send_queue_timer_;
-  /// Pending ready read timer
-  boost::asio::deadline_timer pending_ready_read_;
-  /// Pending ready write timer
-  boost::asio::deadline_timer pending_ready_write_;
   /// Nonce generator
   std::function<void(unsigned char*, size_t)> nonce_generator_;
   /// Timer to resend hello packets when no cookie received
