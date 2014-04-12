@@ -30,7 +30,6 @@ stream::stream(boost::asio::io_service &service)
     ),
     transmit_queue_maximum_(128),
     lower_recv_buffer_(65535),
-    send_queue_timer_(service),
     hello_timed_out_(service)
 {
   struct curvecpr_client_cf client_cf;
@@ -159,7 +158,7 @@ void stream::handle_lower_read(const boost::system::error_code &error, std::size
 
   if (client_.negotiated != curvecpr_client::CURVECPR_CLIENT_PENDING) {
     hello_timed_out_.cancel();
-    handle_process_send_queue(boost::system::error_code());
+    session_.start();
   }
 
   socket_.async_receive(
@@ -167,23 +166,6 @@ void stream::handle_lower_read(const boost::system::error_code &error, std::size
     session_.get_strand().wrap(boost::bind(&stream::handle_lower_read, this,
       boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred))
   );
-}
-
-void stream::handle_process_send_queue(const boost::system::error_code &error)
-{
-  if (error)
-    return;
-
-  if (client_.negotiated != curvecpr_client::CURVECPR_CLIENT_PENDING)
-    session_.process_send_queue();
-
-  reschedule_process_send_queue();
-}
-
-void stream::reschedule_process_send_queue()
-{
-  send_queue_timer_.expires_from_now(session_.get_next_send_timeout());
-  send_queue_timer_.async_wait(session_.get_strand().wrap(boost::bind(&stream::handle_process_send_queue, this, _1)));
 }
 
 int stream::handle_send(struct curvecpr_client *client,

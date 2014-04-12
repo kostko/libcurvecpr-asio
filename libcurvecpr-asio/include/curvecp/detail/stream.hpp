@@ -140,10 +140,6 @@ protected:
   void handle_lower_write(const boost::system::error_code &error, std::size_t bytes);
 
   void handle_lower_read(const boost::system::error_code &error, std::size_t bytes);
-
-  void handle_process_send_queue(const boost::system::error_code &error);
-
-  void reschedule_process_send_queue();
 protected:
   /**
    * Internal handler for libcurvecpr.
@@ -178,8 +174,6 @@ private:
   size_t transmit_queue_maximum_;
   /// Receive buffer space
   std::vector<unsigned char> lower_recv_buffer_;
-  /// Send queue processing timer
-  boost::asio::deadline_timer send_queue_timer_;
   /// Nonce generator
   std::function<void(unsigned char*, size_t)> nonce_generator_;
   /// Timer to resend hello packets when no cookie received

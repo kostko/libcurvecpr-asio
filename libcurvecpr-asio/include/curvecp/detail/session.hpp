@@ -79,6 +79,11 @@ public:
   void async_pending_wait(want what, BOOST_ASIO_MOVE_ARG(Handler) handler);
 
   /**
+   * Starts session send queue processing.
+   */
+  void start();
+
+  /**
    * Configures the maximum size of pending write buffer.
    *
    * @param value Buffer size
@@ -120,16 +125,6 @@ public:
   int lower_receive(const unsigned char *buf, size_t num);
 
   /**
-   * Processes the send queue.
-   */
-  int process_send_queue();
-
-  /**
-   * Returns the time duration when send queue should be processed.
-   */
-  boost::posix_time::time_duration get_next_send_timeout();
-
-  /**
    * Performs a read on this session.
    *
    * @param data Destination buffer to read into
@@ -152,6 +147,10 @@ public:
   bool write(const boost::asio::const_buffer &data,
              boost::system::error_code &ec,
              std::size_t &bytes_transferred);
+protected:
+  void handle_process_send_queue(const boost::system::error_code &error);
+
+  void reschedule_process_send_queue();
 protected:
   /**
    * Internal handler for libcurvecpr.
@@ -297,6 +296,8 @@ private:
   std::uint64_t recvmarkq_distributed_;
   /// Offset into the current read buffer
   std::size_t recvmarkq_read_offset_;
+  /// Send queue processing timer
+  boost::asio::deadline_timer send_queue_timer_;
   /// Pending ready read timer
   boost::asio::deadline_timer pending_ready_read_;
   /// Pending ready write timer

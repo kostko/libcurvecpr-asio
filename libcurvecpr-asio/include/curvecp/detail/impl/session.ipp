@@ -7,6 +7,7 @@
 #ifndef CURVECP_ASIO_DETAIL_IMPL_SESSION_IPP
 #define CURVECP_ASIO_DETAIL_IMPL_SESSION_IPP
 
+#include <boost/bind.hpp>
 #include <boost/asio/error.hpp>
 
 namespace curvecp {
@@ -33,6 +34,7 @@ session::session(boost::asio::io_service &service,
     sendq_head_exists_(false),
     recvmarkq_distributed_(0),
     recvmarkq_read_offset_(0),
+    send_queue_timer_(service),
     pending_ready_read_(service),
     pending_ready_write_(service),
     lower_send_handler_(lower_send_handler)
@@ -78,6 +80,29 @@ void session::async_pending_wait(session::want what, BOOST_ASIO_MOVE_ARG(Handler
   }
 }
 
+void session::start()
+{
+  handle_process_send_queue(boost::system::error_code());
+}
+
+void session::handle_process_send_queue(const boost::system::error_code &error)
+{
+  if (error)
+    return;
+
+  curvecpr_messager_process_sendq(&messager_);
+  reschedule_process_send_queue();
+}
+
+void session::reschedule_process_send_queue()
+{
+  send_queue_timer_.expires_from_now(
+    boost::posix_time::microseconds(curvecpr_messager_next_timeout(&messager_) / 1000)
+  );
+  send_queue_timer_.async_wait(strand_.wrap(boost::bind(&session::handle_process_send_queue, this, _1)));
+}
+
+
 bool session::is_finished() const
 {
   return messager_.my_final && messager_.their_final;
@@ -99,9 +124,10 @@ void session::close()
   pending_eof_ = true;
   pending_ready_read_.cancel();
   pending_ready_write_.cancel();
+  send_queue_timer_.cancel();
 
   // Transmit EOF immediately
-  process_send_queue();
+  curvecpr_messager_process_sendq(&messager_);
 
   // Reinitialize the session
   pending_eof_ = false;
@@ -124,16 +150,6 @@ void session::close()
 int session::lower_receive(const unsigned char *buf, size_t num)
 {
   return curvecpr_messager_recv(&messager_, buf, num);
-}
-
-int session::process_send_queue()
-{
-  return curvecpr_messager_process_sendq(&messager_);
-}
-
-boost::posix_time::time_duration session::get_next_send_timeout()
-{
-  return boost::posix_time::microseconds(curvecpr_messager_next_timeout(&messager_) / 1000);
 }
 
 bool session::read(const boost::asio::mutable_buffer &data,
