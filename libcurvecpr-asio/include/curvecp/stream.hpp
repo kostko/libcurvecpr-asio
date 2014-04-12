@@ -7,11 +7,12 @@
 #ifndef CURVECP_ASIO_STREAM_HPP
 #define CURVECP_ASIO_STREAM_HPP
 
-#include <curvecp/detail/stream.hpp>
+#include <curvecp/detail/client_stream.hpp>
 #include <curvecp/detail/read_op.hpp>
 #include <curvecp/detail/write_op.hpp>
 
 #include <boost/shared_ptr.hpp>
+#include <boost/make_shared.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/async_result.hpp>
 
@@ -32,14 +33,14 @@ public:
    * @param service ASIO IO service
    */
   stream(boost::asio::io_service &service)
-    : stream_(service)
+    : stream_(boost::make_shared<detail::client_stream>(service))
   {
   }
 
   /**
    * Returns the ASIO IO service associated with this stream.
    */
-  boost::asio::io_service &get_io_service() { return stream_.get_io_service(); }
+  boost::asio::io_service &get_io_service() { return stream_->get_io_service(); }
 
   /**
    * Configures the local CurveCP extension. Must be set before starting
@@ -47,7 +48,7 @@ public:
    *
    * @param extension A 16-byte local extension
    */
-  void set_local_extension(const std::string &extension) { stream_.set_local_extension(extension); }
+  void set_local_extension(const std::string &extension) { stream_->set_local_extension(extension); }
 
   /**
    * Configures the local CurveCP public key. Must be set before starting
@@ -55,7 +56,7 @@ public:
    *
    * @param publicKey A 32-byte local public key
    */
-  void set_local_public_key(const std::string &publicKey) { stream_.set_local_public_key(publicKey); }
+  void set_local_public_key(const std::string &publicKey) { stream_->set_local_public_key(publicKey); }
 
   /**
    * Configures the local CurveCP private key. Must be set before starting
@@ -63,7 +64,7 @@ public:
    *
    * @param privateKey A 32-byte local private key
    */
-  void set_local_private_key(const std::string &privateKey) { stream_.set_local_private_key(privateKey); }
+  void set_local_private_key(const std::string &privateKey) { stream_->set_local_private_key(privateKey); }
 
   /**
    * Configures the remote CurveCP extension. Must be set before starting
@@ -71,7 +72,7 @@ public:
    *
    * @param extension A 16-byte remote extension
    */
-  void set_remote_extension(const std::string &extension) { stream_.set_remote_extension(extension); }
+  void set_remote_extension(const std::string &extension) { stream_->set_remote_extension(extension); }
 
   /**
    * Configures the remote CurveCP public key. Must be set before starting
@@ -79,7 +80,7 @@ public:
    *
    * @param publicKey A 32-byte remote public key
    */
-  void set_remote_public_key(const std::string &publicKey) { stream_.set_remote_public_key(publicKey); }
+  void set_remote_public_key(const std::string &publicKey) { stream_->set_remote_public_key(publicKey); }
 
   /**
    * Configures the remote domain name. Must be set before starting the
@@ -87,7 +88,7 @@ public:
    *
    * @param domain A domain name
    */
-  void set_remote_domain_name(const std::string &domain) { stream_.set_remote_domain_name(domain); }
+  void set_remote_domain_name(const std::string &domain) { stream_->set_remote_domain_name(domain); }
 
   /**
    * Configures the secure nonce generator. Must be set before starting the
@@ -96,14 +97,14 @@ public:
    * @param generator A valid NonceGenerator
    */
   template <typename NonceGenerator>
-  void set_nonce_generator(NonceGenerator generator) { stream_.set_nonce_generator(generator); }
+  void set_nonce_generator(NonceGenerator generator) { stream_->set_nonce_generator(generator); }
 
   /**
    * Binds the underlying UDP socket to a specific local endpoint.
    *
    * @param endpoint Endpoint to bind to
    */
-  void bind(const typename detail::stream::endpoint_type &endpoint) { stream_.bind(endpoint); }
+  void bind(const typename detail::basic_stream::endpoint_type &endpoint) { stream_->bind(endpoint); }
 
   /**
    * Connects the underlying UDP socket with a specific remote endpoint and
@@ -111,12 +112,12 @@ public:
    *
    * @param endpoint Endpoint to connect with
    */
-  void connect(const typename detail::stream::endpoint_type &endpoint) { stream_.connect(endpoint); }
+  void connect(const typename detail::basic_stream::endpoint_type &endpoint) { stream_->connect(endpoint); }
 
   /**
    * Closes the stream.
    */
-  void close() { stream_.close(); }
+  void close() { stream_->close(); }
 
   /**
    * Performs a read operation on the stream.
@@ -135,7 +136,7 @@ public:
       ReadHandler, void (boost::system::error_code, std::size_t)> init(
         BOOST_ASIO_MOVE_CAST(ReadHandler)(handler));
 
-    stream_.async_io_operation(curvecp::detail::read_op<MutableBufferSequence>(buffers), init.handler);
+    stream_->async_io_operation(curvecp::detail::read_op<MutableBufferSequence>(buffers), init.handler);
     return init.result.get();
   }
 
@@ -156,12 +157,12 @@ public:
       WriteHandler, void (boost::system::error_code, std::size_t)> init(
         BOOST_ASIO_MOVE_CAST(WriteHandler)(handler));
 
-    stream_.async_io_operation(curvecp::detail::write_op<ConstBufferSequence>(buffers), init.handler);
+    stream_->async_io_operation(curvecp::detail::write_op<ConstBufferSequence>(buffers), init.handler);
     return init.result.get();
   }
 private:
   /// Private stream implementation
-  detail::stream stream_;
+  boost::shared_ptr<detail::basic_stream> stream_;
 };
 
 }

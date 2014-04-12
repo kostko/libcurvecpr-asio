@@ -4,11 +4,12 @@
  * Distributed under the Boost Software License, Version 1.0. (See accompanying
  * file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  */
-#ifndef CURVECP_ASIO_DETAIL_STREAM_HPP
-#define CURVECP_ASIO_DETAIL_STREAM_HPP
+#ifndef CURVECP_ASIO_DETAIL_CLIENT_STREAM_HPP
+#define CURVECP_ASIO_DETAIL_CLIENT_STREAM_HPP
 
 #include <curvecp/detail/curvecpr.h>
 #include <curvecp/detail/session.hpp>
+#include <curvecp/detail/basic_stream.hpp>
 
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/strand.hpp>
@@ -24,17 +25,14 @@ namespace detail {
 /**
  * Internal CurveCP stream handling implementation.
  */
-class stream {
+class client_stream : public basic_stream {
 public:
-  /// The endpoint type
-  typedef typename boost::asio::ip::udp::socket::endpoint_type endpoint_type;
-
   /**
    * Constructs an internal CurveCP client stream implementation.
    *
    * @param service ASIO IO service
    */
-  stream(boost::asio::io_service &service);
+  client_stream(boost::asio::io_service &service);
 
   /**
    * Returns the ASIO IO service associated with this stream.
@@ -117,15 +115,6 @@ public:
    * Closes the stream.
    */
   void close();
-
-  /**
-   * Starts an async IO operation on this stream.
-   *
-   * @param op IO operation to perform
-   * @param handler Handler to be called after operation completes
-   */
-  template <typename Operation, typename Handler>
-  void async_io_operation(const Operation &op, Handler &handler);
 protected:
   bool handle_upper_send(const unsigned char *buffer, std::size_t length);
 
@@ -162,20 +151,17 @@ protected:
                                unsigned char *destination,
                                size_t num);
 private:
+  session session_;
   /// Transport UDP socket
   boost::asio::ip::udp::socket socket_;
   /// Client packet processor
   curvecpr_client client_;
-  /// Session
-  session session_;
   /// Transmit queue
   std::deque<std::vector<unsigned char>> transmit_queue_;
   /// Maximum transmit queue size
   size_t transmit_queue_maximum_;
   /// Receive buffer space
   std::vector<unsigned char> lower_recv_buffer_;
-  /// Nonce generator
-  std::function<void(unsigned char*, size_t)> nonce_generator_;
   /// Timer to resend hello packets when no cookie received
   boost::asio::deadline_timer hello_timed_out_;
 };
@@ -184,6 +170,6 @@ private:
 
 }
 
-#include <curvecp/detail/impl/stream.ipp>
+#include <curvecp/detail/impl/client_stream.ipp>
 
 #endif
