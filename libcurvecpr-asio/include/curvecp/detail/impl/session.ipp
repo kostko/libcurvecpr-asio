@@ -19,10 +19,8 @@ namespace detail {
 #define RECVMARKQ_ELEMENT_ACKNOWLEDGED (1 << 1)
 #define RECVMARKQ_ELEMENT_DONE (RECVMARKQ_ELEMENT_DISTRIBUTED | RECVMARKQ_ELEMENT_ACKNOWLEDGED)
 
-template <typename LowerSendHandler>
 session::session(boost::asio::io_service &service,
-                 type session_type,
-                 LowerSendHandler lower_send_handler)
+                 type session_type)
   : strand_(service),
     pending_maximum_(65536),
     sendmarkq_maximum_(1024),
@@ -37,7 +35,7 @@ session::session(boost::asio::io_service &service,
     send_queue_timer_(service),
     pending_ready_read_(service),
     pending_ready_write_(service),
-    lower_send_handler_(lower_send_handler)
+    running_(false)
 {
   pending_ready_read_.expires_at(boost::posix_time::pos_infin);
   pending_ready_write_.expires_at(boost::posix_time::pos_infin);
@@ -82,6 +80,7 @@ void session::async_pending_wait(session::want what, BOOST_ASIO_MOVE_ARG(Handler
 
 void session::start()
 {
+  running_ = true;
   handle_process_send_queue(boost::system::error_code());
 }
 
@@ -101,7 +100,6 @@ void session::reschedule_process_send_queue()
   );
   send_queue_timer_.async_wait(strand_.wrap(boost::bind(&session::handle_process_send_queue, this, _1)));
 }
-
 
 bool session::is_finished() const
 {
@@ -137,6 +135,7 @@ void session::close()
   sendq_head_exists_ = false;
   recvmarkq_distributed_ = 0;
   recvmarkq_read_offset_ = 0;
+  running_ = false;
 
   for (curvecpr_block *b : sendmarkq_)
     delete b;
@@ -145,6 +144,9 @@ void session::close()
 
   sendmarkq_.clear();
   recvmarkq_.clear();
+
+  if (close_handler_)
+    close_handler_();
 }
 
 int session::lower_receive(const unsigned char *buf, size_t num)
@@ -193,10 +195,8 @@ bool session::read(const boost::asio::mutable_buffer &data,
           break;
       }
 
-      if ((*jt)->block.eof != CURVECPR_BLOCK_STREAM) {
-        ec = boost::system::error_code(boost::asio::error::eof);
+      if ((*jt)->block.eof != CURVECPR_BLOCK_STREAM)
         pending_eof_ = true;
-      }
 
       (*jt)->status |= RECVMARKQ_ELEMENT_DISTRIBUTED;
 
@@ -215,6 +215,9 @@ bool session::read(const boost::asio::mutable_buffer &data,
     // Read is complete
     bytes_transferred = recvmarkq_read_offset_;
     recvmarkq_read_offset_ = 0;
+
+    if (pending_eof_)
+      ec = boost::system::error_code(boost::asio::error::eof);
     return true;
   }
 
@@ -260,6 +263,10 @@ bool session::write(const boost::asio::const_buffer &data,
 
   pending_used_ += buffer_length;
   bytes_transferred = buffer_length;
+
+  // Handle send queue processing immediately as we might have something for a new block
+  if (running_)
+    handle_process_send_queue(boost::system::error_code());
 
   return true;
 }
@@ -324,7 +331,6 @@ int session::handle_sendq_move_to_sendmarkq(struct curvecpr_messager *messager,
       self->sendmarkq_.erase(it);
       self->sendmarkq_.insert(const_cast<curvecpr_block*>(block));
     }
-
     return -1;
   }
 
@@ -347,8 +353,6 @@ int session::handle_sendq_move_to_sendmarkq(struct curvecpr_messager *messager,
 unsigned char session::handle_sendq_is_empty(struct curvecpr_messager *messager)
 {
   session *self = static_cast<session*>(messager->cf.priv);
-
-
 
   return !self->sendq_head_exists_ && // We don't have a block actually waiting to be written
          self->pending_used_ == 0 &&  // We don't have any bytes that we could turn into a block to be written
@@ -493,10 +497,7 @@ int session::handle_send(struct curvecpr_messager *messager,
                          size_t num)
 {
   session *self = static_cast<session*>(messager->cf.priv);
-
-  if (!self->lower_send_handler_(buf, num))
-    return -1;
-
+  self->lower_send_handler_(buf, num);
   return 0;
 }
 

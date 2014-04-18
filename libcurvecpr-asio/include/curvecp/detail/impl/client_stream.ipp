@@ -15,8 +15,6 @@
 #include <boost/asio/placeholders.hpp>
 #include <boost/asio/read.hpp>
 
-#include <iomanip>
-
 namespace curvecp {
 
 namespace detail {
@@ -24,15 +22,13 @@ namespace detail {
 client_stream::client_stream(boost::asio::io_service &service)
   : basic_stream(session_),
     socket_(service),
-    session_(
-      service,
-      session::type::client,
-      boost::bind(&client_stream::handle_upper_send, this, _1, _2)
-    ),
+    session_(service, session::type::client),
     transmit_queue_maximum_(128),
     lower_recv_buffer_(65535),
     hello_timed_out_(service)
 {
+  session_.set_lower_send_handler(boost::bind(&client_stream::handle_upper_send, this, _1, _2));
+
   struct curvecpr_client_cf client_cf;
   client_cf.ops.send = &client_stream::handle_send;
   client_cf.ops.recv = &client_stream::handle_recv;
@@ -82,6 +78,7 @@ void client_stream::set_remote_domain_name(const std::string &domain)
 
 void client_stream::bind(const endpoint_type &endpoint)
 {
+  socket_.open(endpoint.protocol());
   socket_.bind(endpoint);
 }
 
@@ -125,9 +122,9 @@ void client_stream::transmit_pending()
   );
 }
 
-bool client_stream::handle_upper_send(const unsigned char *buffer, std::size_t length)
+void client_stream::handle_upper_send(const unsigned char *buffer, std::size_t length)
 {
-  return curvecpr_client_send(&client_, buffer, length) == 0;
+  curvecpr_client_send(&client_, buffer, length);
 }
 
 void client_stream::handle_lower_write(const boost::system::error_code &error, std::size_t bytes)
@@ -142,12 +139,11 @@ void client_stream::handle_lower_write(const boost::system::error_code &error, s
 void client_stream::handle_lower_read(const boost::system::error_code &error, std::size_t bytes)
 {
   // Push received datagram into client
-  if (curvecpr_client_recv(&client_, &lower_recv_buffer_[0], bytes) != 0)
-    return;
-
-  if (client_.negotiated != curvecpr_client::CURVECPR_CLIENT_PENDING) {
-    hello_timed_out_.cancel();
-    session_.start();
+  if (curvecpr_client_recv(&client_, &lower_recv_buffer_[0], bytes) == 0) {
+    if (client_.negotiated != curvecpr_client::CURVECPR_CLIENT_PENDING) {
+      hello_timed_out_.cancel();
+      session_.start();
+    }
   }
 
   socket_.async_receive(

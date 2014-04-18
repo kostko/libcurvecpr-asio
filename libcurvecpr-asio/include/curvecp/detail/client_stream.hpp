@@ -88,15 +88,6 @@ public:
   void set_remote_domain_name(const std::string &domain);
 
   /**
-   * Configures the secure nonce generator. Must be set before starting the
-   * connection.
-   *
-   * @param generator A valid NonceGenerator
-   */
-  template <typename NonceGenerator>
-  void set_nonce_generator(NonceGenerator generator);
-
-  /**
    * Binds the underlying UDP socket to a specific local endpoint.
    *
    * @param endpoint Endpoint to bind to
@@ -116,13 +107,9 @@ public:
    */
   void close();
 protected:
-  bool handle_upper_send(const unsigned char *buffer, std::size_t length);
+  void handle_upper_send(const unsigned char *buffer, std::size_t length);
 
   void handle_hello_timeout(const boost::system::error_code &error);
-
-  void handle_ready_read();
-
-  void handle_ready_write();
 
   void transmit_pending();
 

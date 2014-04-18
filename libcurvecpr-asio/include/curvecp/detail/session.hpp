@@ -13,6 +13,7 @@
 #include <boost/asio/strand.hpp>
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/ip/udp.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 
@@ -24,11 +25,15 @@ namespace curvecp {
 
 namespace detail {
 
+class acceptor;
+
 /**
  * An internal CurveCP session implementation.
  */
 class session {
 public:
+  friend class curvecp::detail::acceptor;
+
   /**
    * Type of CurveCP session.
    */
@@ -56,12 +61,9 @@ public:
    *
    * @param service ASIO IO service
    * @param session_type Session type
-   * @param lower_send_handler Handler for sending messages
    */
-  template <typename LowerSendHandler>
   session(boost::asio::io_service &service,
-          type session_type,
-          LowerSendHandler lower_send_handler);
+          type session_type);
 
   /**
    * Returns the ASIO strand that is allowed to call this session.
@@ -84,6 +86,22 @@ public:
   void start();
 
   /**
+   * Configures the lower send handler.
+   *
+   * @param handler Handler for sending messages
+   */
+  template <typename LowerSendHandler>
+  void set_lower_send_handler(LowerSendHandler handler) { lower_send_handler_ = handler; }
+
+  /**
+   * Configures the session close handler.
+   *
+   * @param handler Handler for closing the session
+   */
+  template <typename CloseHandler>
+  void set_close_handler(CloseHandler handler) { close_handler_ = handler; }
+
+  /**
    * Configures the maximum size of pending write buffer.
    *
    * @param value Buffer size
@@ -103,6 +121,19 @@ public:
    * @param value Maximum number of unacknowledged received blocks
    */
   void set_recvmarkq_maximum(std::size_t value) { recvmarkq_maximum_ = value; }
+
+  /**
+   * Configures the session remote endpoint. Only used for server
+   * sessions.
+   *
+   * @param endpoint Session endpoint
+   */
+  void set_endpoint(const boost::asio::ip::udp::endpoint &endpoint) { endpoint_ = endpoint; }
+
+  /**
+   * Returns the configured session endpoint.
+   */
+  boost::asio::ip::udp::endpoint get_endpoint() const { return endpoint_; }
 
   /**
    * Returns true if the session is finished.
@@ -230,6 +261,10 @@ protected:
 private:
   /// Dispatch strand
   boost::asio::strand strand_;
+  /// Last known endpoint
+  boost::asio::ip::udp::endpoint endpoint_;
+  /// Optional libcurvecpr session handle
+  curvecpr_session session_;
   /// Internal libcurvecpr messager handle
   curvecpr_messager messager_;
   /// Maximum size of pending write buffer
@@ -303,7 +338,11 @@ private:
   /// Pending ready write timer
   boost::asio::deadline_timer pending_ready_write_;
   /// Lower send handler
-  std::function<bool(const unsigned char*, std::size_t)> lower_send_handler_;
+  std::function<void(const unsigned char*, std::size_t)> lower_send_handler_;
+  /// Close handler
+  std::function<void()> close_handler_;
+  /// Session running flag
+  bool running_;
 };
 
 }

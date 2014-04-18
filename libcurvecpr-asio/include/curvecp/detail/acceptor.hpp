@@ -7,26 +7,185 @@
 #ifndef CURVECP_ASIO_DETAIL_ACCEPTOR_HPP
 #define CURVECP_ASIO_DETAIL_ACCEPTOR_HPP
 
+#include <curvecp/stream.hpp>
 #include <curvecp/detail/session.hpp>
+#include <curvecp/detail/basic_stream.hpp>
 
 #include <boost/shared_ptr.hpp>
+#include <boost/enable_shared_from_this.hpp>
 #include <boost/asio/ip/udp.hpp>
+
 #include <unordered_map>
+#include <deque>
 
 namespace curvecp {
 
 namespace detail {
 
-class acceptor {
+/**
+ * Internal CurveCP server acceptor implementation.
+ */
+class acceptor : public boost::enable_shared_from_this<acceptor> {
 public:
-  // TODO: should handle put/get session
+  /**
+   * Constructs a new CurveCP server acceptor.
+   *
+   * @param service ASIO IO service
+   */
+  acceptor(boost::asio::io_service &service);
+
+  /**
+   * Returns the ASIO IO service associated with this acceptor.
+   */
+  boost::asio::io_service &get_io_service() { return socket_.get_io_service(); }
+
+   /**
+   * Configures the local CurveCP extension. Must be set before listening.
+   *
+   * @param extension A 16-byte local extension
+   */
+  void set_local_extension(const std::string &extension);
+
+  /**
+   * Configures the local CurveCP public key. Must be set before listening.
+   *
+   * @param publicKey A 32-byte local public key
+   */
+  void set_local_public_key(const std::string &publicKey);
+
+  /**
+   * Configures the local CurveCP private key. Must be set before listening.
+   *
+   * @param privateKey A 32-byte local private key
+   */
+  void set_local_private_key(const std::string &privateKey);
+
+  /**
+   * Configures the secure nonce generator. Must be set before listening.
+   *
+   * @param generator A valid NonceGenerator
+   */
+  template <typename NonceGenerator>
+  void set_nonce_generator(NonceGenerator generator) { nonce_generator_ = generator; }
+
+  /**
+   * Binds the underlying UDP socket to a specific local endpoint.
+   *
+   * @param endpoint Endpoint to bind to
+   */
+  void bind(const typename detail::basic_stream::endpoint_type &endpoint);
+
+  /**
+   * Starts to listen for new connections.
+   */
+  void listen();
+
+  /**
+   * Performs a stream accept operation.
+   *
+   * @param stream Destination instance that will contain the accepted stream
+   * @param error Error code
+   * @return True if a new stream has been accepted, false if accept needs retry
+   */
+  bool accept(curvecp::stream &stream, boost::system::error_code &error);
+
+  /**
+   * Schedules a handler to be executed after the acceptor is ready for
+   * accepting a new stream.
+   *
+   * @param handler Handler that should be called when ready
+   */
+  template <typename Handler>
+  void async_pending_accept_wait(BOOST_ASIO_MOVE_ARG(Handler) handler);
+protected:
+  void transmit_pending();
+
+  void handle_session_close(const std::string &sessionKey);
+
+  void handle_upper_send(boost::shared_ptr<session> session,
+                         const unsigned char *buffer,
+                         std::size_t length);
+
+  void handle_lower_write(const boost::system::error_code &error, std::size_t bytes);
+
+  void handle_lower_read(const boost::system::error_code &error, std::size_t bytes);
+protected:
+  /**
+   * Internal handler for libcurvecpr.
+   */
+  static int handle_put_session(struct curvecpr_server *server,
+                                const struct curvecpr_session *s,
+                                void *priv,
+                                struct curvecpr_session **s_stored);
+  /**
+   * Internal handler for libcurvecpr.
+   */
+  static int handle_get_session(struct curvecpr_server *server,
+                                const unsigned char their_session_pk[32],
+                                struct curvecpr_session **s_stored);
+
+  /**
+   * Internal handler for libcurvecpr.
+   */
+  static int handle_send(struct curvecpr_server *server,
+                         struct curvecpr_session *s,
+                         void *priv,
+                         const unsigned char *buf,
+                         size_t num);
+  /**
+   * Internal handler for libcurvecpr.
+   */
+  static int handle_recv(struct curvecpr_server *server,
+                         struct curvecpr_session *s,
+                         void *priv,
+                         const unsigned char *buf,
+                         size_t num);
+
+  /**
+   * Internal handler for libcurvecpr.
+   */
+  static int handle_next_nonce(struct curvecpr_server *server,
+                               unsigned char *destination,
+                               size_t num);
 private:
-  std::unordered_map<std::string, boost::shared_ptr<session>> sessions_;
+  /// Elements of the transmit queue
+  struct transmit_datagram {
+    /// Datagram destination endpoint
+    boost::asio::ip::udp::endpoint endpoint;
+    /// Datagram payload
+    std::vector<unsigned char> data;
+  };
+
+  /// Dispatch strand
+  boost::asio::strand strand_;
+  /// Underlying UDP socket
   boost::asio::ip::udp::socket socket_;
+  /// Maximum number of allowed pending sessions
+  std::size_t maximum_pending_sessions_;
+  /// Pending sessions waiting an accept call
+  std::deque<boost::shared_ptr<session>> pending_sessions_;
+  /// Session storage
+  std::unordered_map<std::string, boost::shared_ptr<session>> sessions_;
+  /// Server packet processor
+  curvecpr_server server_;
+  /// Transmit queue
+  std::deque<transmit_datagram> transmit_queue_;
+  /// Maximum transmit queue size
+  size_t transmit_queue_maximum_;
+  /// Receive endpoint
+  boost::asio::ip::udp::endpoint lower_recv_endpoint_;
+  /// Receive buffer space
+  std::vector<unsigned char> lower_recv_buffer_;
+  /// Pending ready accept timer
+  boost::asio::deadline_timer pending_ready_accept_;
+  /// Nonce generator
+  std::function<void(unsigned char*, size_t)> nonce_generator_;
 };
 
 }
 
 }
+
+#include <curvecp/detail/impl/acceptor.ipp>
 
 #endif

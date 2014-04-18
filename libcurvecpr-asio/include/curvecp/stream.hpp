@@ -18,6 +18,10 @@
 
 namespace curvecp {
 
+namespace detail {
+  class acceptor;
+}
+
 /**
  * CurveCP client stream.
  *
@@ -27,6 +31,8 @@ namespace curvecp {
  */
 class stream {
 public:
+  friend class curvecp::detail::acceptor;
+
   /**
    * Constructs a CurveCP client stream.
    *

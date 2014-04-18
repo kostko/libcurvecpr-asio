@@ -25,9 +25,12 @@ public:
       10000
     ));
 
-    buffer_space_[0] = 0;
+    for (int i = 0; i < 64; i++) {
+      buffer_space_[i] = 104;
+    }
+
     boost::asio::async_write(stream_,
-      boost::asio::buffer(&buffer_space_[0], 1),
+      boost::asio::buffer(&buffer_space_[0], 64),
       boost::bind(&example::write_handler, this, _1)
     );
   }
@@ -39,12 +42,19 @@ public:
 
     if (ec) {
       std::cout << "error ocurred while reading!" << std::endl;
+      stream_.close();
+      return;
     } else {
       std::cout << "bytes are as follows:" << std::endl;
       std::cout << "***********" << std::endl;
       std::cout << std::string(&buffer_space_[0], bytes) << std::endl;
       std::cout << "***********" << std::endl;
     }
+
+    boost::asio::async_write(stream_,
+      boost::asio::buffer(&buffer_space_[0], 64),
+      boost::bind(&example::write_handler, this, _1)
+    );
   }
 
   void write_handler(const boost::system::error_code &ec)
@@ -53,11 +63,12 @@ public:
 
     if (ec) {
       std::cout << "error ocurred while writing!" << std::endl;
+      stream_.close();
       return;
     }
 
     boost::asio::async_read(stream_,
-      boost::asio::buffer(&buffer_space_[0], 98),
+      boost::asio::buffer(&buffer_space_[0], 64),
       boost::bind(&example::read_handler, this, _1, _2)
     );
   }
