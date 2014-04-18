@@ -38,8 +38,8 @@ public:
     );
 
     // Get ready for the next connection
-    //boost::shared_ptr<curvecp::stream> peer(boost::make_shared<curvecp::stream>(service_));
-    //acceptor_.async_accept(*peer, boost::bind(&example::accept_handler, this, peer, _1));
+    boost::shared_ptr<curvecp::stream> peer(boost::make_shared<curvecp::stream>(service_));
+    acceptor_.async_accept(*peer, boost::bind(&example::accept_handler, this, peer, _1));
   }
 
   void read_handler(boost::shared_ptr<curvecp::stream> stream,
