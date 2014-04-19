@@ -1,7 +1,7 @@
 macro(install_headers_with_directory header_list)
 
 foreach(header ${${header_list}})
-string(REGEX MATCH "(.*)[/\]" dir ${header})
+string(REGEX MATCH "(.*)/" dir ${header})
 install(FILES ${header} DESTINATION include/${dir})
 endforeach(header)
 
@@ -27,4 +27,4 @@ curvecp/detail/impl/server_stream.ipp
 curvecp/detail/impl/session.ipp
 )
 
-install_headers_with_directory(${libcurvecpr_asio_includes})
+install_headers_with_directory(libcurvecpr_asio_includes)
