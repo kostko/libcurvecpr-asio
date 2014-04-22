@@ -1,6 +1,6 @@
 # libcurvecpr-asio
 
-libcurvecpr header-only bindings for Boost.ASIO.
+Boost.ASIO header-only bindings for libcurvecpr.
 
 ## Installation
 
@@ -14,3 +14,7 @@ $ cd build
 $ cmake ..
 $ sudo make install
 ```
+
+## Examples
+
+Example server and client implementations can be found under [libcurvecpr-asio/examples](libcurvecpr-asio/examples).
