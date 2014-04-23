@@ -7,7 +7,8 @@
 #ifndef CURVECP_ASIO_DETAIL_CLIENT_STREAM_HPP
 #define CURVECP_ASIO_DETAIL_CLIENT_STREAM_HPP
 
-#include <curvecp/detail/curvecpr.h>
+#include <curvecpr.h>
+
 #include <curvecp/detail/session.hpp>
 #include <curvecp/detail/basic_stream.hpp>
 

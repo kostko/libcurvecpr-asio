@@ -7,7 +7,7 @@
 #ifndef CURVECP_ASIO_DETAIL_SESSION_HPP
 #define CURVECP_ASIO_DETAIL_SESSION_HPP
 
-#include <curvecp/detail/curvecpr.h>
+#include <curvecpr.h>
 
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/strand.hpp>
