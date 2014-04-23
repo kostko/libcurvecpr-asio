@@ -33,13 +33,10 @@ public:
    * Returns the ASIO IO service associated with this stream.
    */
   boost::asio::io_service &get_io_service() { return acceptor_->get_io_service(); }
-
-  /**
-   * Closes the stream.
-   */
-  void close();
 protected:
+  /// Parent acceptor instance
   boost::shared_ptr<acceptor> acceptor_;
+  /// Underlying session instance
   boost::shared_ptr<session> session_;
 };
 

@@ -28,6 +28,10 @@ client_stream::client_stream(boost::asio::io_service &service)
     hello_timed_out_(service)
 {
   session_.set_lower_send_handler(boost::bind(&client_stream::handle_upper_send, this, _1, _2));
+  session_.set_close_handler([this]() {
+    hello_timed_out_.cancel();
+    socket_.close();
+  });
 
   struct curvecpr_client_cf client_cf;
   client_cf.ops.send = &client_stream::handle_send;
@@ -94,12 +98,6 @@ void client_stream::connect(const endpoint_type &endpoint)
   handle_hello_timeout(boost::system::error_code());
 }
 
-void client_stream::close()
-{
-  hello_timed_out_.cancel();
-  session_.close();
-}
-
 void client_stream::handle_hello_timeout(const boost::system::error_code &error)
 {
   if (error)
@@ -129,15 +127,19 @@ void client_stream::handle_upper_send(const unsigned char *buffer, std::size_t l
 
 void client_stream::handle_lower_write(const boost::system::error_code &error, std::size_t bytes)
 {
-  transmit_queue_.pop_front();
   if (error)
-    return; // TODO error handling
-  else if (!transmit_queue_.empty())
+    return; // TODO Transmit error handling?
+
+  transmit_queue_.pop_front();
+  if (!transmit_queue_.empty())
     transmit_pending();
 }
 
 void client_stream::handle_lower_read(const boost::system::error_code &error, std::size_t bytes)
 {
+  if (error)
+    return;
+
   // Push received datagram into client
   if (curvecpr_client_recv(&client_, &lower_recv_buffer_[0], bytes) == 0) {
     if (client_.negotiated != curvecpr_client::CURVECPR_CLIENT_PENDING) {

@@ -22,7 +22,6 @@ public:
       10000
     ));
 
-    std::cout << "calling async accept" << std::endl;
     boost::shared_ptr<curvecp::stream> peer(boost::make_shared<curvecp::stream>(service_));
     acceptor_.async_accept(*peer, boost::bind(&example::accept_handler, this, peer, _1));
     acceptor_.listen();
@@ -31,7 +30,7 @@ public:
   void accept_handler(boost::shared_ptr<curvecp::stream> stream,
                       const boost::system::error_code &ec)
   {
-    std::cout << "accept handler called, we have a new stream!" << std::endl;
+    std::cout << "ACCEPTOR: Accept handler called, we have a new stream!" << std::endl;
     boost::asio::async_read(*stream,
       boost::asio::buffer(&buffer_space_[0], 64),
       boost::bind(&example::read_handler, this, stream, _1, _2)
@@ -42,22 +41,19 @@ public:
     acceptor_.async_accept(*peer, boost::bind(&example::accept_handler, this, peer, _1));
   }
 
+  void close_handler(boost::shared_ptr<curvecp::stream> stream)
+  {
+    std::cout << "STREAM: Stream closed." << std::endl;
+  }
+
   void read_handler(boost::shared_ptr<curvecp::stream> stream,
                     const boost::system::error_code &ec,
                     std::size_t bytes)
   {
-    std::cout << "READ handler called" << std::endl;
-    std::cout << "got " << bytes << " of bytes." << std::endl;
-
     if (ec) {
-      std::cout << "error ocurred while reading!" << std::endl;
-      stream->close();
+      std::cout << "STREAM: Error ocurred while reading!" << std::endl;
+      stream->async_close(boost::bind(&example::close_handler, this, stream));
       return;
-    } else {
-      std::cout << "bytes are as follows:" << std::endl;
-      std::cout << "***********" << std::endl;
-      std::cout << std::string(&buffer_space_[0], bytes) << std::endl;
-      std::cout << "***********" << std::endl;
     }
 
     boost::asio::async_write(*stream,
@@ -70,11 +66,9 @@ public:
                      const boost::system::error_code &ec,
                      std::size_t bytes)
   {
-    std::cout << "WRITE handler called" << std::endl;
-
     if (ec) {
-      std::cout << "error ocurred while writing!" << std::endl;
-      stream->close();
+      std::cout << "STREAM: Error ocurred while writing!" << std::endl;
+      stream->async_close(boost::bind(&example::close_handler, this, stream));
       return;
     }
 

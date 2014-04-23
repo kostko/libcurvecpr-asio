@@ -53,7 +53,9 @@ public:
     // Returned by operations to signal that additional reads need to be performed
     read,
     // Returned by operations to signal that additional writes need to be performed
-    write
+    write,
+    // Returned by operations to signal that we need to wait for session close
+    close
   };
 
   /**
@@ -136,19 +138,11 @@ public:
   boost::asio::ip::udp::endpoint get_endpoint() const { return endpoint_; }
 
   /**
-   * Returns true if the session is finished.
-   */
-  bool is_finished() const;
-
-  /**
-   * Marks the session as finished.
-   */
-  void finish();
-
-  /**
    * Closes this session.
+   *
+   * @return True if operation completed, false if caller must wait
    */
-  void close();
+  bool close();
 
   /**
    * Handles receive event from underlying CurveCP client/server.
@@ -337,6 +331,8 @@ private:
   boost::asio::deadline_timer pending_ready_read_;
   /// Pending ready write timer
   boost::asio::deadline_timer pending_ready_write_;
+  /// Pending ready close timer
+  boost::asio::deadline_timer pending_ready_close_;
   /// Lower send handler
   std::function<void(const unsigned char*, std::size_t)> lower_send_handler_;
   /// Close handler

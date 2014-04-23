@@ -19,11 +19,6 @@ server_stream::server_stream(boost::shared_ptr<acceptor> acceptor,
 {
 }
 
-void server_stream::close()
-{
-  session_->close();
-}
-
 }
 
 }

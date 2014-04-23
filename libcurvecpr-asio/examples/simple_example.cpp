@@ -7,7 +7,8 @@ public:
   example(boost::asio::io_service &service)
     : service_(service),
       stream_(service),
-      buffer_space_(1024)
+      buffer_space_(1024),
+      sent_data_(0)
   {
     stream_.set_local_extension(std::string("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16));
     stream_.set_local_public_key(std::string("\xa3\xe7\xb1\x22\xe6\x86\x77\x7c\x39\xc3\xf8\x76\x3d\x4d\x4\xf\x39\x7\x24\x37\xa3\xf5\x7c\x5d\xfc\x56\x59\xc0\x95\xb7\xc1\x3c", 32));
@@ -35,20 +36,23 @@ public:
     );
   }
 
+  void close_handler()
+  {
+    std::cout << "STREAM: Stream closed." << std::endl;
+  }
+
   void read_handler(const boost::system::error_code &ec, std::size_t bytes)
   {
-    std::cout << "READ handler called" << std::endl;
-    std::cout << "got " << bytes << " of bytes." << std::endl;
-
     if (ec) {
-      std::cout << "error ocurred while reading!" << std::endl;
-      stream_.close();
+      std::cout << "STREAM: Error ocurred while reading!" << std::endl;
+      stream_.async_close(boost::bind(&example::close_handler, this));
       return;
-    } else {
-      std::cout << "bytes are as follows:" << std::endl;
-      std::cout << "***********" << std::endl;
-      std::cout << std::string(&buffer_space_[0], bytes) << std::endl;
-      std::cout << "***********" << std::endl;
+    }
+
+    if (++sent_data_ > 1024) {
+      std::cout << "STREAM: Closing stream." << std::endl;
+      stream_.async_close(boost::bind(&example::close_handler, this));
+      return;
     }
 
     boost::asio::async_write(stream_,
@@ -59,11 +63,9 @@ public:
 
   void write_handler(const boost::system::error_code &ec)
   {
-    std::cout << "WRITE handler called" << std::endl;
-
     if (ec) {
-      std::cout << "error ocurred while writing!" << std::endl;
-      stream_.close();
+      std::cout << "STREAM: Error ocurred while writing!" << std::endl;
+      stream_.async_close(boost::bind(&example::close_handler, this));
       return;
     }
 
@@ -81,6 +83,8 @@ private:
   curvecp::stream stream_;
   /// Buffer space
   std::vector<char> buffer_space_;
+  /// Sent data counter
+  size_t sent_data_;
 };
 
 int main()

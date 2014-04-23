@@ -124,12 +124,6 @@ public:
   {}
 
   /**
-   * Closes the stream.
-   */
-  virtual void close()
-  {}
-
-  /**
    * Starts an async IO operation on this stream.
    *
    * @param op IO operation to perform

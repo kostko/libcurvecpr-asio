@@ -101,11 +101,6 @@ public:
    * @param endpoint Endpoint to connect with
    */
   void connect(const endpoint_type &endpoint);
-
-  /**
-   * Closes the stream.
-   */
-  void close();
 protected:
   void handle_upper_send(const unsigned char *buffer, std::size_t length);
 

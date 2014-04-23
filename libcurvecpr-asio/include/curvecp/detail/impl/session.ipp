@@ -35,10 +35,12 @@ session::session(boost::asio::io_service &service,
     send_queue_timer_(service),
     pending_ready_read_(service),
     pending_ready_write_(service),
+    pending_ready_close_(service),
     running_(false)
 {
   pending_ready_read_.expires_at(boost::posix_time::pos_infin);
   pending_ready_write_.expires_at(boost::posix_time::pos_infin);
+  pending_ready_close_.expires_at(boost::posix_time::pos_infin);
 
   // Configure curvecpr messager handlers
   struct curvecpr_messager_cf messager_cf = {
@@ -72,9 +74,10 @@ template <typename Handler>
 void session::async_pending_wait(session::want what, BOOST_ASIO_MOVE_ARG(Handler) handler)
 {
   switch (what) {
+    case session::want::nothing: return;
     case session::want::read: pending_ready_read_.async_wait(strand_.wrap(handler)); break;
     case session::want::write: pending_ready_write_.async_wait(strand_.wrap(handler)); break;
-    default: break;
+    case session::want::close: pending_ready_close_.async_wait(strand_.wrap(handler)); break;
   }
 }
 
@@ -90,6 +93,36 @@ void session::handle_process_send_queue(const boost::system::error_code &error)
     return;
 
   curvecpr_messager_process_sendq(&messager_);
+  if (messager_.my_final && messager_.their_final) {
+    // The session has finished so we can clean up
+    pending_ready_read_.cancel();
+    pending_ready_write_.cancel();
+    send_queue_timer_.cancel();
+
+    pending_eof_ = false;
+    pending_used_ = 0;
+    pending_current_ = 0;
+    pending_next_ = 0;
+    sendq_head_exists_ = false;
+    recvmarkq_distributed_ = 0;
+    recvmarkq_read_offset_ = 0;
+    running_ = false;
+
+    for (curvecpr_block *b : sendmarkq_)
+      delete b;
+    for (curvecpr_block_status *b : recvmarkq_)
+      delete b;
+
+    sendmarkq_.clear();
+    recvmarkq_.clear();
+
+    if (close_handler_)
+      close_handler_();
+
+    pending_ready_close_.cancel();
+    return;
+  }
+
   reschedule_process_send_queue();
 }
 
@@ -101,52 +134,28 @@ void session::reschedule_process_send_queue()
   send_queue_timer_.async_wait(strand_.wrap(boost::bind(&session::handle_process_send_queue, this, _1)));
 }
 
-bool session::is_finished() const
+bool session::close()
 {
-  return messager_.my_final && messager_.their_final;
-}
+  if (!running_) {
+    // Since we are not yet running, we can return immediately
+    pending_ready_read_.cancel();
+    pending_ready_write_.cancel();
 
-void session::finish()
-{
-  if (pending_eof_)
-    return;
+    if (close_handler_)
+      close_handler_();
+    return true;
+  }
 
+  // Set flag so that EOF blocks will be sent, then wait for ACKs and then
+  // close the session
   pending_eof_ = true;
-  pending_ready_read_.cancel();
-  pending_ready_write_.cancel();
-}
 
-void session::close()
-{
-  // Finish the session first
-  pending_eof_ = true;
-  pending_ready_read_.cancel();
-  pending_ready_write_.cancel();
-  send_queue_timer_.cancel();
-
-  // Transmit EOF immediately
+  // Transmit EOF immediately (need to process sendq twice -- first to generate
+  // a sendq head block and second to actually transmit the block)
   curvecpr_messager_process_sendq(&messager_);
-
-  // Reinitialize the session
-  pending_eof_ = false;
-  pending_used_ = 0;
-  pending_current_ = 0;
-  pending_next_ = 0;
-  sendq_head_exists_ = false;
-  recvmarkq_distributed_ = 0;
-  recvmarkq_read_offset_ = 0;
-  running_ = false;
-
-  for (curvecpr_block *b : sendmarkq_)
-    delete b;
-  for (curvecpr_block_status *b : recvmarkq_)
-    delete b;
-
-  sendmarkq_.clear();
-  recvmarkq_.clear();
-
-  if (close_handler_)
-    close_handler_();
+  curvecpr_messager_process_sendq(&messager_);
+  reschedule_process_send_queue();
+  return false;
 }
 
 int session::lower_receive(const unsigned char *buf, size_t num)

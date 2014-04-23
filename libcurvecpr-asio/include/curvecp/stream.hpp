@@ -10,6 +10,7 @@
 #include <curvecp/detail/client_stream.hpp>
 #include <curvecp/detail/read_op.hpp>
 #include <curvecp/detail/write_op.hpp>
+#include <curvecp/detail/close_op.hpp>
 
 #include <boost/shared_ptr.hpp>
 #include <boost/make_shared.hpp>
@@ -121,9 +122,19 @@ public:
   void connect(const typename detail::basic_stream::endpoint_type &endpoint) { stream_->connect(endpoint); }
 
   /**
-   * Closes the stream.
+   * Performs a close operation on the stream.
    */
-  void close() { stream_->close(); }
+  template <typename CloseHandler>
+  BOOST_ASIO_INITFN_RESULT_TYPE(CloseHandler, void())
+  async_close(BOOST_ASIO_MOVE_ARG(CloseHandler) handler)
+  {
+    boost::asio::detail::async_result_init<
+      CloseHandler, void()> init(
+        BOOST_ASIO_MOVE_CAST(CloseHandler)(handler));
+
+    stream_->async_io_operation(curvecp::detail::close_op(), init.handler);
+    return init.result.get();
+  }
 
   /**
    * Performs a read operation on the stream.
