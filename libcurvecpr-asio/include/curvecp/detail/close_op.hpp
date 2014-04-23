@@ -26,7 +26,7 @@ public:
   }
 
   /**
-   * Executes the read operation.
+   * Executes the close operation.
    *
    * @param session Internal CurveCP session reference
    * @return Whether the operation should be retried
