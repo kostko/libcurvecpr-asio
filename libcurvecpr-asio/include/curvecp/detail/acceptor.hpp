@@ -93,6 +93,11 @@ public:
   bool accept(curvecp::stream &stream, boost::system::error_code &error);
 
   /**
+   * Returns the endpoint to which the local socket is bound.
+   */
+  typename detail::basic_stream::endpoint_type local_endpoint() const;
+
+  /**
    * Schedules a handler to be executed after the acceptor is ready for
    * accepting a new stream.
    *

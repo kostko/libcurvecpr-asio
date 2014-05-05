@@ -81,6 +81,11 @@ public:
   void listen() { acceptor_->listen(); }
 
   /**
+   * Returns the endpoint to which the local socket is bound.
+   */
+  typename detail::basic_stream::endpoint_type local_endpoint() const { return acceptor_->local_endpoint(); };
+
+  /**
    * Performs an accept operation.
    */
   template <typename AcceptHandler>

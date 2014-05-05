@@ -34,6 +34,9 @@ class stream {
 public:
   friend class curvecp::detail::acceptor;
 
+  /// CurveCP endpoint type
+  typedef typename curvecp::detail::basic_stream::endpoint_type endpoint;
+
   /**
    * Constructs a CurveCP client stream.
    *

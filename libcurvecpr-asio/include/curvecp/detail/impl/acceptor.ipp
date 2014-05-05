@@ -73,6 +73,11 @@ void acceptor::listen()
   );
 }
 
+typename detail::basic_stream::endpoint_type acceptor::local_endpoint() const
+{
+  return socket_.local_endpoint();
+}
+
 bool acceptor::accept(curvecp::stream &stream, boost::system::error_code &error)
 {
   error = boost::system::error_code();
