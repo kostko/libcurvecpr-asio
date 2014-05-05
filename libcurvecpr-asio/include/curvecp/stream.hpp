@@ -44,6 +44,9 @@ public:
   {
   }
 
+  stream(const stream&) = delete;
+  stream &operator=(const stream&) = delete;
+
   /**
    * Returns the ASIO IO service associated with this stream.
    */

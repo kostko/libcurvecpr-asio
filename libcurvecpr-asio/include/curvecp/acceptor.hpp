@@ -28,6 +28,9 @@ public:
   {
   }
 
+  acceptor(const acceptor&) = delete;
+  acceptor &operator=(const acceptor&) = delete;
+
   /**
    * Returns the ASIO IO service associated with this acceptor.
    */

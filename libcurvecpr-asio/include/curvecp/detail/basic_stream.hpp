@@ -35,6 +35,9 @@ public:
   {
   }
 
+  basic_stream(const basic_stream&) = delete;
+  basic_stream &operator=(const basic_stream&) = delete;
+
   /**
    * Returns the ASIO IO service associated with this stream.
    */
