@@ -176,6 +176,8 @@ protected:
   inline void handle_process_send_queue(const boost::system::error_code &error);
 
   inline void reschedule_process_send_queue();
+
+  inline void do_close(const boost::system::error_code &error);
 protected:
   /**
    * Internal handler for libcurvecpr.
@@ -333,6 +335,8 @@ private:
   boost::asio::deadline_timer pending_ready_write_;
   /// Pending ready close timer
   boost::asio::deadline_timer pending_ready_close_;
+  /// Close timer
+  boost::asio::deadline_timer close_timer_;
   /// Lower send handler
   std::function<void(const unsigned char*, std::size_t)> lower_send_handler_;
   /// Close handler

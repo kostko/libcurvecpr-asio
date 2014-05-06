@@ -36,6 +36,7 @@ session::session(boost::asio::io_service &service,
     pending_ready_read_(service),
     pending_ready_write_(service),
     pending_ready_close_(service),
+    close_timer_(service),
     running_(false)
 {
   pending_ready_read_.expires_at(boost::posix_time::pos_infin);
@@ -94,33 +95,7 @@ void session::handle_process_send_queue(const boost::system::error_code &error)
 
   curvecpr_messager_process_sendq(&messager_);
   if (messager_.my_final && messager_.their_final) {
-    // The session has finished so we can clean up
-    pending_ready_read_.cancel();
-    pending_ready_write_.cancel();
-    send_queue_timer_.cancel();
-
-    pending_eof_ = false;
-    pending_used_ = 0;
-    pending_current_ = 0;
-    pending_next_ = 0;
-    sendq_head_exists_ = false;
-    recvmarkq_distributed_ = 0;
-    recvmarkq_read_offset_ = 0;
-    running_ = false;
-
-    for (curvecpr_block *b : sendmarkq_)
-      delete b;
-    for (curvecpr_block_status *b : recvmarkq_)
-      delete b;
-
-    sendmarkq_.clear();
-    recvmarkq_.clear();
-
-    if (close_handler_)
-      close_handler_();
-
-    pending_ready_close_.cancel();
-    return;
+    return do_close(boost::system::error_code());
   }
 
   reschedule_process_send_queue();
@@ -132,6 +107,40 @@ void session::reschedule_process_send_queue()
     boost::posix_time::microseconds(curvecpr_messager_next_timeout(&messager_) / 1000)
   );
   send_queue_timer_.async_wait(strand_.wrap(boost::bind(&session::handle_process_send_queue, this, _1)));
+}
+
+void session::do_close(const boost::system::error_code &error)
+{
+  if (error)
+    return;
+
+  // The session has finished so we can clean up
+  close_timer_.cancel();
+  pending_ready_read_.cancel();
+  pending_ready_write_.cancel();
+  send_queue_timer_.cancel();
+
+  pending_eof_ = false;
+  pending_used_ = 0;
+  pending_current_ = 0;
+  pending_next_ = 0;
+  sendq_head_exists_ = false;
+  recvmarkq_distributed_ = 0;
+  recvmarkq_read_offset_ = 0;
+  running_ = false;
+
+  for (curvecpr_block *b : sendmarkq_)
+    delete b;
+  for (curvecpr_block_status *b : recvmarkq_)
+    delete b;
+
+  sendmarkq_.clear();
+  recvmarkq_.clear();
+
+  if (close_handler_)
+    close_handler_();
+
+  pending_ready_close_.cancel();
 }
 
 bool session::close()
@@ -155,6 +164,11 @@ bool session::close()
   curvecpr_messager_process_sendq(&messager_);
   curvecpr_messager_process_sendq(&messager_);
   reschedule_process_send_queue();
+
+  // Start a close timer so that if we don't get ACKs we close anyway
+  close_timer_.expires_from_now(boost::posix_time::seconds(5));
+  close_timer_.async_wait(strand_.wrap(boost::bind(&session::do_close, this, _1)));
+
   return false;
 }
 
