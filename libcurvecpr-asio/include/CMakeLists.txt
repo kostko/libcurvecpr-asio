@@ -15,6 +15,7 @@ curvecp/detail/accept_op.hpp
 curvecp/detail/acceptor.hpp
 curvecp/detail/basic_stream.hpp
 curvecp/detail/client_stream.hpp
+curvecp/detail/close_op.hpp
 curvecp/detail/io.hpp
 curvecp/detail/read_op.hpp
 curvecp/detail/server_stream.hpp
