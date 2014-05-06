@@ -26,8 +26,8 @@ public:
    * @param acceptor Acceptor instance
    * @param session Session instance
    */
-  server_stream(boost::shared_ptr<acceptor> acceptor,
-                boost::shared_ptr<session> session);
+  inline server_stream(boost::shared_ptr<acceptor> acceptor,
+                       boost::shared_ptr<session> session);
 
   /**
    * Returns the ASIO IO service associated with this stream.

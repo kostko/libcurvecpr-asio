@@ -32,7 +32,7 @@ public:
    *
    * @param service ASIO IO service
    */
-  acceptor(boost::asio::io_service &service);
+  inline acceptor(boost::asio::io_service &service);
 
   acceptor(const acceptor&) = delete;
   acceptor &operator=(const acceptor&) = delete;
@@ -47,21 +47,21 @@ public:
    *
    * @param extension A 16-byte local extension
    */
-  void set_local_extension(const std::string &extension);
+  inline void set_local_extension(const std::string &extension);
 
   /**
    * Configures the local CurveCP public key. Must be set before listening.
    *
    * @param publicKey A 32-byte local public key
    */
-  void set_local_public_key(const std::string &publicKey);
+  inline void set_local_public_key(const std::string &publicKey);
 
   /**
    * Configures the local CurveCP private key. Must be set before listening.
    *
    * @param privateKey A 32-byte local private key
    */
-  void set_local_private_key(const std::string &privateKey);
+  inline void set_local_private_key(const std::string &privateKey);
 
   /**
    * Configures the secure nonce generator. Must be set before listening.
@@ -76,12 +76,12 @@ public:
    *
    * @param endpoint Endpoint to bind to
    */
-  void bind(const typename detail::basic_stream::endpoint_type &endpoint);
+  inline void bind(const typename detail::basic_stream::endpoint_type &endpoint);
 
   /**
    * Starts to listen for new connections.
    */
-  void listen();
+  inline void listen();
 
   /**
    * Performs a stream accept operation.
@@ -90,12 +90,12 @@ public:
    * @param error Error code
    * @return True if a new stream has been accepted, false if accept needs retry
    */
-  bool accept(curvecp::stream &stream, boost::system::error_code &error);
+  inline bool accept(curvecp::stream &stream, boost::system::error_code &error);
 
   /**
    * Returns the endpoint to which the local socket is bound.
    */
-  typename detail::basic_stream::endpoint_type local_endpoint() const;
+  inline typename detail::basic_stream::endpoint_type local_endpoint() const;
 
   /**
    * Schedules a handler to be executed after the acceptor is ready for
@@ -104,57 +104,57 @@ public:
    * @param handler Handler that should be called when ready
    */
   template <typename Handler>
-  void async_pending_accept_wait(BOOST_ASIO_MOVE_ARG(Handler) handler);
+  inline void async_pending_accept_wait(BOOST_ASIO_MOVE_ARG(Handler) handler);
 protected:
-  void transmit_pending();
+  inline void transmit_pending();
 
-  void handle_session_close(const std::string &sessionKey);
+  inline void handle_session_close(const std::string &sessionKey);
 
-  void handle_upper_send(boost::shared_ptr<session> session,
-                         const unsigned char *buffer,
-                         std::size_t length);
+  inline void handle_upper_send(boost::shared_ptr<session> session,
+                                const unsigned char *buffer,
+                                std::size_t length);
 
-  void handle_lower_write(const boost::system::error_code &error, std::size_t bytes);
+  inline void handle_lower_write(const boost::system::error_code &error, std::size_t bytes);
 
-  void handle_lower_read(const boost::system::error_code &error, std::size_t bytes);
+  inline void handle_lower_read(const boost::system::error_code &error, std::size_t bytes);
 protected:
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_put_session(struct curvecpr_server *server,
-                                const struct curvecpr_session *s,
+  inline static int handle_put_session(struct curvecpr_server *server,
+                                       const struct curvecpr_session *s,
+                                       void *priv,
+                                       struct curvecpr_session **s_stored);
+  /**
+   * Internal handler for libcurvecpr.
+   */
+  inline static int handle_get_session(struct curvecpr_server *server,
+                                       const unsigned char their_session_pk[32],
+                                       struct curvecpr_session **s_stored);
+
+  /**
+   * Internal handler for libcurvecpr.
+   */
+  inline static int handle_send(struct curvecpr_server *server,
+                                struct curvecpr_session *s,
                                 void *priv,
-                                struct curvecpr_session **s_stored);
+                                const unsigned char *buf,
+                                size_t num);
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_get_session(struct curvecpr_server *server,
-                                const unsigned char their_session_pk[32],
-                                struct curvecpr_session **s_stored);
+  inline static int handle_recv(struct curvecpr_server *server,
+                                struct curvecpr_session *s,
+                                void *priv,
+                                const unsigned char *buf,
+                                size_t num);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_send(struct curvecpr_server *server,
-                         struct curvecpr_session *s,
-                         void *priv,
-                         const unsigned char *buf,
-                         size_t num);
-  /**
-   * Internal handler for libcurvecpr.
-   */
-  static int handle_recv(struct curvecpr_server *server,
-                         struct curvecpr_session *s,
-                         void *priv,
-                         const unsigned char *buf,
-                         size_t num);
-
-  /**
-   * Internal handler for libcurvecpr.
-   */
-  static int handle_next_nonce(struct curvecpr_server *server,
-                               unsigned char *destination,
-                               size_t num);
+  inline static int handle_next_nonce(struct curvecpr_server *server,
+                                      unsigned char *destination,
+                                      size_t num);
 private:
   /// Elements of the transmit queue
   struct transmit_datagram {

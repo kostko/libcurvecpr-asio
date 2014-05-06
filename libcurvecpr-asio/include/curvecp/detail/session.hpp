@@ -64,8 +64,8 @@ public:
    * @param service ASIO IO service
    * @param session_type Session type
    */
-  session(boost::asio::io_service &service,
-          type session_type);
+  inline session(boost::asio::io_service &service,
+                 type session_type);
 
   /**
    * Returns the ASIO strand that is allowed to call this session.
@@ -80,12 +80,12 @@ public:
    * @param handler Handler that should be called when ready
    */
   template <typename Handler>
-  void async_pending_wait(want what, BOOST_ASIO_MOVE_ARG(Handler) handler);
+  inline void async_pending_wait(want what, BOOST_ASIO_MOVE_ARG(Handler) handler);
 
   /**
    * Starts session send queue processing.
    */
-  void start();
+  inline void start();
 
   /**
    * Configures the lower send handler.
@@ -142,12 +142,12 @@ public:
    *
    * @return True if operation completed, false if caller must wait
    */
-  bool close();
+  inline bool close();
 
   /**
    * Handles receive event from underlying CurveCP client/server.
    */
-  int lower_receive(const unsigned char *buf, size_t num);
+  inline int lower_receive(const unsigned char *buf, size_t num);
 
   /**
    * Performs a read on this session.
@@ -157,9 +157,9 @@ public:
    * @param bytes_transferred Resulting number of bytes transferred
    * @return True when read has been completed, false when it must be retried
    */
-  bool read(const boost::asio::mutable_buffer &data,
-            boost::system::error_code &ec,
-            std::size_t &bytes_transferred);
+  inline bool read(const boost::asio::mutable_buffer &data,
+                   boost::system::error_code &ec,
+                   std::size_t &bytes_transferred);
 
   /**
    * Performs a write on this session.
@@ -169,89 +169,89 @@ public:
    * @param bytes_transferred Resulting number of bytes transferred
    * @return True when write has been completed, false when it must be retried
    */
-  bool write(const boost::asio::const_buffer &data,
-             boost::system::error_code &ec,
-             std::size_t &bytes_transferred);
+  inline bool write(const boost::asio::const_buffer &data,
+                    boost::system::error_code &ec,
+                    std::size_t &bytes_transferred);
 protected:
-  void handle_process_send_queue(const boost::system::error_code &error);
+  inline void handle_process_send_queue(const boost::system::error_code &error);
 
-  void reschedule_process_send_queue();
+  inline void reschedule_process_send_queue();
 protected:
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_sendq_head(struct curvecpr_messager *messager,
-                               struct curvecpr_block **block_stored);
+  inline static int handle_sendq_head(struct curvecpr_messager *messager,
+                                      struct curvecpr_block **block_stored);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_sendq_move_to_sendmarkq(struct curvecpr_messager *messager,
-                                            const struct curvecpr_block *block,
-                                            struct curvecpr_block **block_stored);
+  inline static int handle_sendq_move_to_sendmarkq(struct curvecpr_messager *messager,
+                                                   const struct curvecpr_block *block,
+                                                   struct curvecpr_block **block_stored);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static unsigned char handle_sendq_is_empty(struct curvecpr_messager *messager);
+  inline static unsigned char handle_sendq_is_empty(struct curvecpr_messager *messager);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_sendmarkq_head(struct curvecpr_messager *messager,
-                                   struct curvecpr_block **block_stored);
+  inline static int handle_sendmarkq_head(struct curvecpr_messager *messager,
+                                          struct curvecpr_block **block_stored);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_sendmarkq_get(struct curvecpr_messager *messager,
-                                  crypto_uint32 acknowledging_id,
-                                  struct curvecpr_block **block_stored);
+  inline static int handle_sendmarkq_get(struct curvecpr_messager *messager,
+                                         crypto_uint32 acknowledging_id,
+                                         struct curvecpr_block **block_stored);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_sendmarkq_remove_range(struct curvecpr_messager *messager,
-                                           unsigned long long start,
-                                           unsigned long long end);
+  inline static int handle_sendmarkq_remove_range(struct curvecpr_messager *messager,
+                                                  unsigned long long start,
+                                                  unsigned long long end);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static unsigned char handle_sendmarkq_is_full(struct curvecpr_messager *messager);
+  inline static unsigned char handle_sendmarkq_is_full(struct curvecpr_messager *messager);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_recvmarkq_put(struct curvecpr_messager *messager,
-                                  const struct curvecpr_block *block,
-                                  struct curvecpr_block **block_stored);
+  inline static int handle_recvmarkq_put(struct curvecpr_messager *messager,
+                                         const struct curvecpr_block *block,
+                                         struct curvecpr_block **block_stored);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_recvmarkq_get_nth_unacknowledged(struct curvecpr_messager *messager,
-                                                     unsigned int n,
-                                                     struct curvecpr_block **block_stored);
+  inline static int handle_recvmarkq_get_nth_unacknowledged(struct curvecpr_messager *messager,
+                                                            unsigned int n,
+                                                            struct curvecpr_block **block_stored);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static unsigned char handle_recvmarkq_is_empty(struct curvecpr_messager *messager);
+  inline static unsigned char handle_recvmarkq_is_empty(struct curvecpr_messager *messager);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_recvmarkq_remove_range(struct curvecpr_messager *messager,
-                                           unsigned long long start,
-                                           unsigned long long end);
+  inline static int handle_recvmarkq_remove_range(struct curvecpr_messager *messager,
+                                                  unsigned long long start,
+                                                  unsigned long long end);
 
   /**
    * Internal handler for libcurvecpr.
    */
-  static int handle_send(struct curvecpr_messager *messager,
-                         const unsigned char *buf,
-                         size_t num);
+  inline static int handle_send(struct curvecpr_messager *messager,
+                                const unsigned char *buf,
+                                size_t num);
 private:
   /// Dispatch strand
   boost::asio::strand strand_;
