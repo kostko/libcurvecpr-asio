@@ -28,11 +28,14 @@ public:
   /**
    * Constructs an internal CurveCP client stream implementation.
    *
+   * @param service ASIO IO service
    * @param session Internal session reference
    */
-  basic_stream(session &session)
-    : ref_session_(session)
+  basic_stream(boost::asio::io_service &service, session &session)
+    : ref_session_(session),
+      pending_ready_connect_(service)
   {
+    pending_ready_connect_.expires_at(boost::posix_time::pos_infin);
   }
 
   basic_stream(const basic_stream&) = delete;
@@ -122,9 +125,26 @@ public:
    * starts the CurveCP connection.
    *
    * @param endpoint Endpoint to connect with
+   * @param ec Resulting error code
+   * @return True when connect has been completed, false when it must be retried
    */
-  virtual void connect(const endpoint_type &endpoint)
-  {}
+  virtual bool connect(const endpoint_type &endpoint,
+                       boost::system::error_code &ec)
+  {
+    ec = boost::system::error_code();
+    return true;
+  }
+
+  /**
+   * Waits for the stream to signal connect status.
+   *
+   * @param handler Connect handler
+   */
+  template <typename Handler>
+  void async_pending_connect_wait(BOOST_ASIO_MOVE_ARG(Handler) handler)
+  {
+    pending_ready_connect_.async_wait(ref_session_.get_strand().wrap(handler));
+  }
 
   /**
    * Starts an async IO operation on this stream.
@@ -142,6 +162,8 @@ protected:
   session &ref_session_;
   /// Nonce generator
   std::function<void(unsigned char*, size_t)> nonce_generator_;
+  /// Pending ready connect timer
+  boost::asio::deadline_timer pending_ready_connect_;
 };
 
 }

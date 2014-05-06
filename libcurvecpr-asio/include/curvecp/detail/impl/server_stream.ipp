@@ -13,7 +13,7 @@ namespace detail {
 
 server_stream::server_stream(boost::shared_ptr<acceptor> acceptor,
                              boost::shared_ptr<session> session)
-  : basic_stream(*session),
+  : basic_stream(acceptor->get_io_service(), *session),
     acceptor_(acceptor),
     session_(session)
 {

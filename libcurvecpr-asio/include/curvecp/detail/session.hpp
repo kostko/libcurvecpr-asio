@@ -88,6 +88,11 @@ public:
   inline void start();
 
   /**
+   * Returns true if the session is running.
+   */
+  bool is_running() const { return running_; }
+
+  /**
    * Configures the lower send handler.
    *
    * @param handler Handler for sending messages

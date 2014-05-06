@@ -20,12 +20,13 @@ namespace curvecp {
 namespace detail {
 
 client_stream::client_stream(boost::asio::io_service &service)
-  : basic_stream(session_),
+  : basic_stream(service, session_),
     socket_(service),
     session_(service, session::type::client),
     transmit_queue_maximum_(128),
     lower_recv_buffer_(65535),
-    hello_timed_out_(service)
+    hello_timed_out_(service),
+    hello_retries_(0)
 {
   session_.set_lower_send_handler(boost::bind(&client_stream::handle_upper_send, this, _1, _2));
   session_.set_close_handler([this]() {
@@ -86,22 +87,42 @@ void client_stream::bind(const endpoint_type &endpoint)
   socket_.bind(endpoint);
 }
 
-void client_stream::connect(const endpoint_type &endpoint)
+bool client_stream::connect(const endpoint_type &endpoint, boost::system::error_code &ec)
 {
-  socket_.connect(endpoint);
-  socket_.async_receive(
-    boost::asio::buffer(lower_recv_buffer_),
-    session_.get_strand().wrap(boost::bind(&client_stream::handle_lower_read, this,
-      boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred))
-  );
+  if (session_.is_running()) {
+    ec = boost::system::error_code();
+    return true;
+  } else {
+    if (hello_retries_ < 0) {
+      hello_retries_ = 0;
+      ec = boost::system::error_code(boost::asio::error::connection_refused);
+      return true;
+    }
 
-  handle_hello_timeout(boost::system::error_code());
+    hello_retries_ = 0;
+    socket_.connect(endpoint);
+    socket_.async_receive(
+      boost::asio::buffer(lower_recv_buffer_),
+      session_.get_strand().wrap(boost::bind(&client_stream::handle_lower_read, this,
+        boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred))
+    );
+
+    handle_hello_timeout(boost::system::error_code());
+    return false;
+  }
 }
 
 void client_stream::handle_hello_timeout(const boost::system::error_code &error)
 {
   if (error)
     return;
+
+  if (++hello_retries_ > 5) {
+    hello_retries_ = -1;
+    pending_ready_connect_.cancel();
+    socket_.close();
+    return;
+  }
 
   // Resend hello packet and restart the timer
   curvecpr_client_connected(&client_);
@@ -127,8 +148,8 @@ void client_stream::handle_upper_send(const unsigned char *buffer, std::size_t l
 
 void client_stream::handle_lower_write(const boost::system::error_code &error, std::size_t bytes)
 {
-  if (error)
-    return; // TODO Transmit error handling?
+  if (error == boost::asio::error::operation_aborted || error == boost::asio::error::bad_descriptor)
+    return;
 
   transmit_queue_.pop_front();
   if (!transmit_queue_.empty())
@@ -137,14 +158,16 @@ void client_stream::handle_lower_write(const boost::system::error_code &error, s
 
 void client_stream::handle_lower_read(const boost::system::error_code &error, std::size_t bytes)
 {
-  if (error)
+  if (error == boost::asio::error::operation_aborted || error == boost::asio::error::bad_descriptor)
     return;
 
   // Push received datagram into client
   if (curvecpr_client_recv(&client_, &lower_recv_buffer_[0], bytes) == 0) {
     if (client_.negotiated != curvecpr_client::CURVECPR_CLIENT_PENDING) {
+      hello_retries_ = 0;
       hello_timed_out_.cancel();
       session_.start();
+      pending_ready_connect_.cancel();
     }
   }
 
@@ -156,8 +179,8 @@ void client_stream::handle_lower_read(const boost::system::error_code &error, st
 }
 
 int client_stream::handle_send(struct curvecpr_client *client,
-                        const unsigned char *buf,
-                        size_t num)
+                               const unsigned char *buf,
+                               size_t num)
 {
   client_stream *self = static_cast<client_stream*>(client->cf.priv);
 
@@ -176,16 +199,16 @@ int client_stream::handle_send(struct curvecpr_client *client,
 }
 
 int client_stream::handle_recv(struct curvecpr_client *client,
-                        const unsigned char *buf,
-                        size_t num)
+                               const unsigned char *buf,
+                               size_t num)
 {
   client_stream *self = static_cast<client_stream*>(client->cf.priv);
   return self->session_.lower_receive(buf, num);
 }
 
 int client_stream::handle_next_nonce(struct curvecpr_client *client,
-                              unsigned char *destination,
-                              size_t num)
+                                     unsigned char *destination,
+                                     size_t num)
 {
   client_stream *self = static_cast<client_stream*>(client->cf.priv);
   if (!self->nonce_generator_)

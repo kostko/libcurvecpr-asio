@@ -93,15 +93,18 @@ public:
    *
    * @param endpoint Endpoint to bind to
    */
-  inline void bind(const endpoint_type &endpoint);
+  inline void bind(const endpoint_type &endpoint) override;
 
   /**
    * Connects the underlying UDP socket with a specific remote endpoint and
    * starts the CurveCP connection.
    *
    * @param endpoint Endpoint to connect with
+   * @param ec Resulting error code
+   * @return True when connect has been completed, false when it must be retried
    */
-  inline void connect(const endpoint_type &endpoint);
+  inline bool connect(const endpoint_type &endpoint,
+                      boost::system::error_code &ec) override;
 protected:
   inline void handle_upper_send(const unsigned char *buffer, std::size_t length);
 
@@ -147,6 +150,8 @@ private:
   std::vector<unsigned char> lower_recv_buffer_;
   /// Timer to resend hello packets when no cookie received
   boost::asio::deadline_timer hello_timed_out_;
+  /// Hello retries
+  int hello_retries_;
 };
 
 }

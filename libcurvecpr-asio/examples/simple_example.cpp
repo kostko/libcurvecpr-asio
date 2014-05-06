@@ -21,10 +21,20 @@ public:
 
   void start()
   {
-    stream_.connect(boost::asio::ip::udp::endpoint(
-      boost::asio::ip::address::from_string("127.0.0.1"),
-      10000
-    ));
+    stream_.async_connect(
+      boost::asio::ip::udp::endpoint(boost::asio::ip::address::from_string("127.0.0.1"), 10000),
+      boost::bind(&example::connect_handler, this, _1)
+    );
+  }
+
+  void connect_handler(const boost::system::error_code &ec)
+  {
+    if (ec) {
+      std::cout << "STREAM: Connection failed." << std::endl;
+      return;
+    }
+
+    std::cout << "STREAM: Connected." << std::endl;
 
     for (int i = 0; i < 64; i++) {
       buffer_space_[i] = 104;
