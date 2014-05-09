@@ -80,6 +80,7 @@ typename detail::basic_stream::endpoint_type acceptor::local_endpoint() const
 
 bool acceptor::accept(curvecp::stream &stream, boost::system::error_code &error)
 {
+  std::unique_lock<std::recursive_mutex> lock(mutex_);
   error = boost::system::error_code();
   if (pending_sessions_.empty())
     return false;
@@ -110,6 +111,7 @@ void acceptor::transmit_pending()
 
 void acceptor::handle_lower_write(const boost::system::error_code &error, std::size_t bytes)
 {
+  std::unique_lock<std::recursive_mutex> lock(mutex_);
   transmit_queue_.pop_front();
   if (error)
     return; // TODO error handling
@@ -119,6 +121,8 @@ void acceptor::handle_lower_write(const boost::system::error_code &error, std::s
 
 void acceptor::handle_lower_read(const boost::system::error_code &error, std::size_t bytes)
 {
+  std::unique_lock<std::recursive_mutex> lock(mutex_);
+
   // Push received datagram into server
   curvecpr_session *s = nullptr;
   if (curvecpr_server_recv(&server_, nullptr, &lower_recv_buffer_[0], bytes, &s) == 0) {
@@ -141,11 +145,13 @@ void acceptor::handle_upper_send(boost::shared_ptr<session> session,
                                  const unsigned char *buffer,
                                  std::size_t length)
 {
+  std::unique_lock<std::recursive_mutex> lock(mutex_);
   curvecpr_server_send(&server_, &session->session_, nullptr, buffer, length);
 }
 
 void acceptor::handle_session_close(const std::string &sessionKey)
 {
+  std::unique_lock<std::recursive_mutex> lock(mutex_);
   sessions_.erase(sessionKey);
 }
 
@@ -155,20 +161,22 @@ int acceptor::handle_put_session(struct curvecpr_server *server,
                                  struct curvecpr_session **s_stored)
 {
   acceptor *self = static_cast<acceptor*>(server->cf.priv);
+  std::unique_lock<std::recursive_mutex> lock(self->mutex_);
+
   if (self->pending_sessions_.size() >= self->maximum_pending_sessions_)
     return 1;
 
   // Create a new session descriptor
   boost::shared_ptr<session> sp = boost::make_shared<session>(self->get_io_service(),
     session::type::server);
-  sp->set_lower_send_handler(self->strand_.wrap(boost::bind(&acceptor::handle_upper_send, self, sp, _1, _2)));
+  sp->set_lower_send_handler(boost::bind(&acceptor::handle_upper_send, self, sp, _1, _2));
   sp->session_ = *s;
   sp->session_.priv = sp.get();
   sp->set_endpoint(self->lower_recv_endpoint_);
   // Store session under its public key
   std::string sessionKey((const char*) sp->session_.their_session_pk, 32);
   self->sessions_.insert({{ sessionKey, sp }});
-  sp->set_close_handler(self->strand_.wrap(boost::bind(&acceptor::handle_session_close, self, sessionKey)));
+  sp->set_close_handler(boost::bind(&acceptor::handle_session_close, self, sessionKey));
   // Put session parameters into the pending session queue
   self->pending_sessions_.push_back(sp);
   // Notify waiting acceptors
@@ -185,6 +193,7 @@ int acceptor::handle_get_session(struct curvecpr_server *server,
                                  struct curvecpr_session **s_stored)
 {
   acceptor *self = static_cast<acceptor*>(server->cf.priv);
+  std::unique_lock<std::recursive_mutex> lock(self->mutex_);
 
   // Lookup session descriptor
   auto it = self->sessions_.find(std::string((const char*) their_session_pk, 32));
@@ -204,6 +213,8 @@ int acceptor::handle_send(struct curvecpr_server *server,
                           size_t num)
 {
   acceptor *self = static_cast<acceptor*>(server->cf.priv);
+  std::unique_lock<std::recursive_mutex> lock(self->mutex_);
+
   if (self->transmit_queue_.size() >= self->transmit_queue_maximum_)
     return -1;
 

@@ -17,6 +17,7 @@
 
 #include <unordered_map>
 #include <deque>
+#include <mutex>
 
 namespace curvecp {
 
@@ -164,6 +165,8 @@ private:
     std::vector<unsigned char> data;
   };
 
+  /// Mutex
+  std::recursive_mutex mutex_;
   /// Dispatch strand
   boost::asio::strand strand_;
   /// Underlying UDP socket

@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <set>
 #include <vector>
+#include <mutex>
 
 namespace curvecp {
 
@@ -260,6 +261,8 @@ protected:
                                 const unsigned char *buf,
                                 size_t num);
 private:
+  /// Mutex
+  std::recursive_mutex mutex_;
   /// Dispatch strand
   boost::asio::strand strand_;
   /// Last known endpoint

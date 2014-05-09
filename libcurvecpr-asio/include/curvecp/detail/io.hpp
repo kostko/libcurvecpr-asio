@@ -57,7 +57,7 @@ public:
       finished_ = true;
       if (start) {
         // We are being called directly by the async operation, so need to
-        // defer the invocation of th handler
+        // defer the invocation of the handler
         stream_.get_io_service().post(BOOST_ASIO_MOVE_CAST(io_op)(*this));
         return;
       }
