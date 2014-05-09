@@ -345,6 +345,8 @@ int session::handle_sendq_head(struct curvecpr_messager *messager,
       self->sendq_head_.eof = CURVECPR_BLOCK_STREAM;
 
     self->sendq_head_exists_ = true;
+    *block_stored = &self->sendq_head_;
+    return 0;
   }
 
   return -1;
