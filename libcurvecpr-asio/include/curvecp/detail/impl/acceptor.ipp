@@ -21,7 +21,8 @@ acceptor::acceptor(boost::asio::io_service &service)
   : strand_(service),
     socket_(service),
     maximum_pending_sessions_(16),
-    transmit_queue_maximum_(512),
+    transmit_buffer_(2048),
+    transmit_in_progress_(false),
     lower_recv_buffer_(65535),
     pending_ready_accept_(service)
 {
@@ -98,25 +99,9 @@ void acceptor::async_pending_accept_wait(BOOST_ASIO_MOVE_ARG(Handler) handler)
   pending_ready_accept_.async_wait(strand_.wrap(handler));
 }
 
-void acceptor::transmit_pending()
-{
-  // Send the first item in the transmit queue
-  socket_.async_send_to(
-    boost::asio::buffer(&transmit_queue_.front().data[0], transmit_queue_.front().data.size()),
-    transmit_queue_.front().endpoint,
-    strand_.wrap(boost::bind(&acceptor::handle_lower_write, this,
-      boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred))
-  );
-}
-
 void acceptor::handle_lower_write(const boost::system::error_code &error, std::size_t bytes)
 {
-  std::unique_lock<std::recursive_mutex> lock(mutex_);
-  transmit_queue_.pop_front();
-  if (error)
-    return; // TODO error handling
-  else if (!transmit_queue_.empty())
-    transmit_pending();
+  transmit_in_progress_ = false;
 }
 
 void acceptor::handle_lower_read(const boost::system::error_code &error, std::size_t bytes)
@@ -215,7 +200,7 @@ int acceptor::handle_send(struct curvecpr_server *server,
   acceptor *self = static_cast<acceptor*>(server->cf.priv);
   std::unique_lock<std::recursive_mutex> lock(self->mutex_);
 
-  if (self->transmit_queue_.size() >= self->transmit_queue_maximum_)
+  if (self->transmit_in_progress_)
     return -1;
 
   boost::asio::ip::udp::endpoint endpoint;
@@ -228,15 +213,15 @@ int acceptor::handle_send(struct curvecpr_server *server,
     endpoint = static_cast<session*>(s->priv)->get_endpoint();
   }
 
-  transmit_datagram datagram;
-  datagram.endpoint = endpoint;
-  datagram.data.resize(num);
-  std::memcpy(&datagram.data[0], buf, num);
-  self->transmit_queue_.push_back(std::move(datagram));
+  self->transmit_in_progress_ = true;
+  std::memcpy(&self->transmit_buffer_[0], buf, num);
 
-  // If this is the only item in the queue, transmit immediately
-  if (self->transmit_queue_.size() == 1)
-    self->transmit_pending();
+  // Transmit data
+  self->socket_.async_send_to(
+    boost::asio::buffer(&self->transmit_buffer_[0], num),
+    endpoint,
+    self->strand_.wrap(boost::bind(&acceptor::handle_lower_write, self, _1, _2))
+  );
 
   return 0;
 }

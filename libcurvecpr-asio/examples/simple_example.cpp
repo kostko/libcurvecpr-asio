@@ -7,7 +7,9 @@ public:
   example(boost::asio::io_service &service)
     : service_(service),
       stream_(service),
-      buffer_space_(1024),
+      rx_buffer_space_(1024),
+      tx_buffer_space_(1024),
+      received_data_(0),
       sent_data_(0)
   {
     stream_.set_local_extension(std::string("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16));
@@ -37,11 +39,18 @@ public:
     std::cout << "STREAM: Connected." << std::endl;
 
     for (int i = 0; i < 64; i++) {
-      buffer_space_[i] = 104;
+      tx_buffer_space_[i] = 104;
     }
 
+    // Start reading data
+    boost::asio::async_read(stream_,
+      boost::asio::buffer(&rx_buffer_space_[0], 64),
+      boost::bind(&example::read_handler, this, _1, _2)
+    );
+
+    // Write some data as well
     boost::asio::async_write(stream_,
-      boost::asio::buffer(&buffer_space_[0], 64),
+      boost::asio::buffer(&tx_buffer_space_[0], 64),
       boost::bind(&example::write_handler, this, _1)
     );
   }
@@ -59,15 +68,27 @@ public:
       return;
     }
 
-    if (++sent_data_ > 1024) {
-      std::cout << "STREAM: Closing stream." << std::endl;
+    if (bytes != 64)
+      std::cout << "WARNING: Received an invalid number of bytes!" << std::endl;
+
+    for (int i = 0; i < bytes; i++) {
+      if (rx_buffer_space_[i] != 104)
+        std::cout << "WARNING: Received corrupted byte in position " << i << "!" << std::endl;
+    }
+
+    received_data_ += bytes;
+    if (received_data_ % 1024 == 0)
+      std::cout << "STREAM: Read " << received_data_ << " bytes." << std::endl;
+
+    if (received_data_ > 1024*512) {
+      std::cout << "STREAM: Closing stream after reading " << received_data_ << " bytes." << std::endl;
       stream_.async_close(boost::bind(&example::close_handler, this));
       return;
     }
 
-    boost::asio::async_write(stream_,
-      boost::asio::buffer(&buffer_space_[0], 64),
-      boost::bind(&example::write_handler, this, _1)
+    boost::asio::async_read(stream_,
+      boost::asio::buffer(&rx_buffer_space_[0], 64),
+      boost::bind(&example::read_handler, this, _1, _2)
     );
   }
 
@@ -79,9 +100,13 @@ public:
       return;
     }
 
-    boost::asio::async_read(stream_,
-      boost::asio::buffer(&buffer_space_[0], 64),
-      boost::bind(&example::read_handler, this, _1, _2)
+    sent_data_ += 64;
+    if (sent_data_ % 1024 == 0)
+      std::cout << "STREAM: Wrote " << sent_data_ << " bytes." << std::endl;
+
+    boost::asio::async_write(stream_,
+      boost::asio::buffer(&tx_buffer_space_[0], 64),
+      boost::bind(&example::write_handler, this, _1)
     );
   }
 private:
@@ -91,10 +116,14 @@ private:
   boost::asio::io_service &service_;
   /// CurveCP stream
   curvecp::stream stream_;
-  /// Buffer space
-  std::vector<char> buffer_space_;
+  /// RX buffer space
+  std::vector<char> rx_buffer_space_;
+  /// TX buffer space
+  std::vector<char> tx_buffer_space_;
+  /// Received data counter
+  std::size_t received_data_;
   /// Sent data counter
-  size_t sent_data_;
+  std::size_t sent_data_;
 };
 
 int main()

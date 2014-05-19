@@ -23,7 +23,8 @@ client_stream::client_stream(boost::asio::io_service &service)
   : basic_stream(service, session_),
     socket_(service),
     session_(service, session::type::client),
-    transmit_queue_maximum_(128),
+    transmit_buffer_(2048),
+    transmit_in_progress_(false),
     lower_recv_buffer_(65535),
     hello_timed_out_(service),
     hello_retries_(0)
@@ -128,17 +129,8 @@ void client_stream::handle_hello_timeout(const boost::system::error_code &error)
   curvecpr_client_connected(&client_);
 
   hello_timed_out_.expires_from_now(boost::posix_time::seconds(1));
-  hello_timed_out_.async_wait(boost::bind(&client_stream::handle_hello_timeout, this, _1));
-}
-
-void client_stream::transmit_pending()
-{
-  // Send the first item in the transmit queue
-  socket_.async_send(
-    boost::asio::buffer(&transmit_queue_.front()[0], transmit_queue_.front().size()),
-    session_.get_strand().wrap(boost::bind(&client_stream::handle_lower_write, this,
-      boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred))
-  );
+  hello_timed_out_.async_wait(session_.get_strand().wrap(
+    boost::bind(&client_stream::handle_hello_timeout, this, _1)));
 }
 
 void client_stream::handle_upper_send(const unsigned char *buffer, std::size_t length)
@@ -148,12 +140,7 @@ void client_stream::handle_upper_send(const unsigned char *buffer, std::size_t l
 
 void client_stream::handle_lower_write(const boost::system::error_code &error, std::size_t bytes)
 {
-  if (error == boost::asio::error::operation_aborted || error == boost::asio::error::bad_descriptor)
-    return;
-
-  transmit_queue_.pop_front();
-  if (!transmit_queue_.empty())
-    transmit_pending();
+  transmit_in_progress_ = false;
 }
 
 void client_stream::handle_lower_read(const boost::system::error_code &error, std::size_t bytes)
@@ -184,16 +171,17 @@ int client_stream::handle_send(struct curvecpr_client *client,
 {
   client_stream *self = static_cast<client_stream*>(client->cf.priv);
 
-  if (self->transmit_queue_.size() >= self->transmit_queue_maximum_)
+  if (self->transmit_in_progress_)
     return -1;
 
-  std::vector<unsigned char> buffer(num);
-  std::memcpy(&buffer[0], buf, num);
-  self->transmit_queue_.push_back(buffer);
+  self->transmit_in_progress_ = true;
+  std::memcpy(&self->transmit_buffer_[0], buf, num);
 
-  // If this is the only item in the queue, transmit immediately
-  if (self->transmit_queue_.size() == 1)
-    self->transmit_pending();
+  // Transmit data
+  self->socket_.async_send(
+    boost::asio::buffer(&self->transmit_buffer_[0], num),
+    self->session_.get_strand().wrap(boost::bind(&client_stream::handle_lower_write, self, _1, _2))
+  );
 
   return 0;
 }

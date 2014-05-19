@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <set>
 #include <vector>
-#include <mutex>
 
 namespace curvecp {
 
@@ -144,7 +143,8 @@ public:
   boost::asio::ip::udp::endpoint get_endpoint() const { return endpoint_; }
 
   /**
-   * Closes this session.
+   * Closes this session. This method must only be called from within the
+   * session strand!
    *
    * @return True if operation completed, false if caller must wait
    */
@@ -156,7 +156,8 @@ public:
   inline int lower_receive(const unsigned char *buf, size_t num);
 
   /**
-   * Performs a read on this session.
+   * Performs a read on this session. This method must only be called from
+   * within the session strand!
    *
    * @param data Destination buffer to read into
    * @param ec Resulting error code
@@ -168,7 +169,8 @@ public:
                    std::size_t &bytes_transferred);
 
   /**
-   * Performs a write on this session.
+   * Performs a write on this session. This method must only be called from
+   * within the session strand!
    *
    * @param data Source buffer to read from
    * @param ec Resulting error code
@@ -261,8 +263,6 @@ protected:
                                 const unsigned char *buf,
                                 size_t num);
 private:
-  /// Mutex
-  std::recursive_mutex mutex_;
   /// Dispatch strand
   boost::asio::strand strand_;
   /// Last known endpoint
@@ -281,6 +281,8 @@ private:
   std::vector<unsigned char> pending_;
   /// Pending EOF marker
   bool pending_eof_;
+  /// Pending close marker
+  bool pending_close_;
   /// Amount of pending buffer used
   std::uint64_t pending_used_;
   /// Amount of buffer pending for inclusion into block

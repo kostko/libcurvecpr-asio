@@ -107,8 +107,6 @@ public:
   template <typename Handler>
   inline void async_pending_accept_wait(BOOST_ASIO_MOVE_ARG(Handler) handler);
 protected:
-  inline void transmit_pending();
-
   inline void handle_session_close(const std::string &sessionKey);
 
   inline void handle_upper_send(boost::shared_ptr<session> session,
@@ -157,14 +155,6 @@ protected:
                                       unsigned char *destination,
                                       size_t num);
 private:
-  /// Elements of the transmit queue
-  struct transmit_datagram {
-    /// Datagram destination endpoint
-    boost::asio::ip::udp::endpoint endpoint;
-    /// Datagram payload
-    std::vector<unsigned char> data;
-  };
-
   /// Mutex
   std::recursive_mutex mutex_;
   /// Dispatch strand
@@ -179,10 +169,10 @@ private:
   std::unordered_map<std::string, boost::shared_ptr<session>> sessions_;
   /// Server packet processor
   curvecpr_server server_;
-  /// Transmit queue
-  std::deque<transmit_datagram> transmit_queue_;
-  /// Maximum transmit queue size
-  size_t transmit_queue_maximum_;
+  /// Transmit buffer
+  std::vector<unsigned char> transmit_buffer_;
+  /// Transmit in progress flag
+  bool transmit_in_progress_;
   /// Receive endpoint
   boost::asio::ip::udp::endpoint lower_recv_endpoint_;
   /// Receive buffer space

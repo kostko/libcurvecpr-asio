@@ -7,7 +7,8 @@ public:
   example(boost::asio::io_service &service)
     : service_(service),
       acceptor_(service),
-      buffer_space_(1024)
+      buffer_space_(1024),
+      received_data_(0)
   {
     acceptor_.set_local_extension(std::string("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16));
     acceptor_.set_local_public_key(std::string("\x3f\x56\xfd\x60\x4f\x31\x57\x5d\x1f\xa8\xd2\x4\x2e\x8a\xd7\xe1\x1e\x8a\x51\x64\xf0\x79\xb7\x63\x63\x14\xcd\x52\x9e\x7a\x9a\x19", 32));
@@ -56,6 +57,10 @@ public:
       return;
     }
 
+    received_data_ += bytes;
+    if (received_data_ % 1024 == 0)
+      std::cout << "STREAM: Read " << received_data_ << " bytes." << std::endl;
+
     boost::asio::async_write(*stream,
       boost::asio::buffer(&buffer_space_[0], bytes),
       boost::bind(&example::write_handler, this, stream, _1, _2)
@@ -86,6 +91,8 @@ private:
   curvecp::acceptor acceptor_;
   /// Buffer space
   std::vector<char> buffer_space_;
+  /// Received bytes counter
+  std::size_t received_data_;
 };
 
 int main()

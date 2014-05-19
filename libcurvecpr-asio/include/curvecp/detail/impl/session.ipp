@@ -9,6 +9,7 @@
 
 #include <boost/bind.hpp>
 #include <boost/asio/error.hpp>
+#include <boost/make_shared.hpp>
 
 namespace curvecp {
 
@@ -23,9 +24,10 @@ session::session(boost::asio::io_service &service,
                  type session_type)
   : strand_(service),
     pending_maximum_(65536),
-    sendmarkq_maximum_(1024),
-    recvmarkq_maximum_(1024),
+    sendmarkq_maximum_(512),
+    recvmarkq_maximum_(512),
     pending_eof_(false),
+    pending_close_(false),
     pending_used_(0),
     pending_current_(0),
     pending_next_(0),
@@ -85,7 +87,7 @@ void session::async_pending_wait(session::want what, BOOST_ASIO_MOVE_ARG(Handler
 void session::start()
 {
   running_ = true;
-  handle_process_send_queue(boost::system::error_code());
+  strand_.dispatch(boost::bind(&session::handle_process_send_queue, this, boost::system::error_code()));
 }
 
 void session::handle_process_send_queue(const boost::system::error_code &error)
@@ -93,11 +95,9 @@ void session::handle_process_send_queue(const boost::system::error_code &error)
   if (error)
     return;
 
-  std::unique_lock<std::recursive_mutex> lock(mutex_);
   curvecpr_messager_process_sendq(&messager_);
-  if (messager_.my_final && messager_.their_final) {
+  if (messager_.my_final && messager_.their_final)
     return do_close(boost::system::error_code());
-  }
 
   reschedule_process_send_queue();
 }
@@ -115,14 +115,13 @@ void session::do_close(const boost::system::error_code &error)
   if (error)
     return;
 
-  std::unique_lock<std::recursive_mutex> lock(mutex_);
-
   // The session has finished so we can clean up
   close_timer_.cancel();
   pending_ready_read_.cancel();
   pending_ready_write_.cancel();
   send_queue_timer_.cancel();
 
+  pending_close_ = false;
   pending_eof_ = false;
   pending_used_ = 0;
   pending_current_ = 0;
@@ -158,17 +157,19 @@ bool session::close()
     return true;
   }
 
-  std::unique_lock<std::recursive_mutex> lock(mutex_);
+  if (pending_close_)
+    return false;
+  else
+    pending_close_ = true;
 
   // Set flag so that EOF blocks will be sent, then wait for ACKs and then
   // close the session
   pending_eof_ = true;
 
-  // Transmit EOF immediately (need to process sendq twice -- first to generate
-  // a sendq head block and second to actually transmit the block)
-  curvecpr_messager_process_sendq(&messager_);
-  curvecpr_messager_process_sendq(&messager_);
-  reschedule_process_send_queue();
+  // Transmit EOF immediately
+  handle_process_send_queue(boost::system::error_code());
+  if (!running_)
+    return true;
 
   // Start a close timer so that if we don't get ACKs we close anyway
   close_timer_.expires_from_now(boost::posix_time::seconds(5));
@@ -179,7 +180,16 @@ bool session::close()
 
 int session::lower_receive(const unsigned char *buf, size_t num)
 {
-  std::unique_lock<std::recursive_mutex> lock(mutex_);
+  // Ensure that receive is initiated via the session strand
+  if (!strand_.running_in_this_thread()) {
+    boost::shared_ptr<std::vector<unsigned char>> data(boost::make_shared<std::vector<unsigned char>>(num));
+    std::memcpy(&(*data)[0], buf, num);
+    strand_.dispatch([this, data]() {
+      curvecpr_messager_recv(&messager_, &(*data)[0], data->size());
+    });
+    return 0;
+  }
+
   return curvecpr_messager_recv(&messager_, buf, num);
 }
 
@@ -187,7 +197,6 @@ bool session::read(const boost::asio::mutable_buffer &data,
                    boost::system::error_code &ec,
                    std::size_t &bytes_transferred)
 {
-  std::unique_lock<std::recursive_mutex> lock(mutex_);
   bytes_transferred = 0;
   ec = boost::system::error_code();
 
@@ -230,6 +239,10 @@ bool session::read(const boost::asio::mutable_buffer &data,
 
       (*jt)->status |= RECVMARKQ_ELEMENT_DISTRIBUTED;
 
+      // Update the number of contiguous sent bytes
+      if (messager_.their_contiguous_sent_bytes < recvmarkq_distributed_)
+        messager_.their_contiguous_sent_bytes = recvmarkq_distributed_;
+
       // If this element has been acknowledged and distributed, remove it
       if ((*jt)->status == RECVMARKQ_ELEMENT_DONE) {
         delete *jt;
@@ -258,7 +271,6 @@ bool session::write(const boost::asio::const_buffer &data,
                     boost::system::error_code &ec,
                     std::size_t &bytes_transferred)
 {
-  std::unique_lock<std::recursive_mutex> lock(mutex_);
   size_t buffer_length = boost::asio::buffer_size(data);
   bytes_transferred = 0;
   ec = boost::system::error_code();
@@ -278,26 +290,25 @@ bool session::write(const boost::asio::const_buffer &data,
   const unsigned char *buffer = boost::asio::buffer_cast<const unsigned char*>(data);
 
   if (pending_next_ + buffer_length > pending_maximum_) {
-      // Two writes; one at the end and one at the beginning
-      int avail = pending_maximum_ - pending_next_;
+    // Two writes; one at the end and one at the beginning
+    int avail = pending_maximum_ - pending_next_;
 
-      std::memcpy(&pending_[0] + pending_next_, buffer, avail);
-      std::memcpy(&pending_[0], buffer + avail, buffer_length - avail);
+    std::memcpy(&pending_[0] + pending_next_, buffer, avail);
+    std::memcpy(&pending_[0], buffer + avail, buffer_length - avail);
 
-      pending_next_ = buffer_length - avail;
+    pending_next_ = buffer_length - avail;
   } else {
-      // Just one write at the end
-      std::memcpy(&pending_[0] + pending_next_, buffer, buffer_length);
+    // Just one write at the end
+    std::memcpy(&pending_[0] + pending_next_, buffer, buffer_length);
 
-      pending_next_ += buffer_length;
+    pending_next_ += buffer_length;
   }
 
   pending_used_ += buffer_length;
   bytes_transferred = buffer_length;
 
-  // Handle send queue processing immediately as we might have something for a new block
   if (running_)
-    handle_process_send_queue(boost::system::error_code());
+    reschedule_process_send_queue();
 
   return true;
 }
@@ -306,7 +317,6 @@ int session::handle_sendq_head(struct curvecpr_messager *messager,
                                struct curvecpr_block **block_stored)
 {
   session *self = static_cast<session*>(messager->cf.priv);
-  std::unique_lock<std::recursive_mutex> lock(self->mutex_);
 
   if (self->sendq_head_exists_) {
     *block_stored = &self->sendq_head_;
@@ -447,8 +457,7 @@ int session::handle_sendmarkq_remove_range(struct curvecpr_messager *messager,
 unsigned char session::handle_sendmarkq_is_full(struct curvecpr_messager *messager)
 {
   session *self = static_cast<session*>(messager->cf.priv);
-
-  return self->sendmarkq_.size() >= 0 && self->sendmarkq_.size() >= self->sendmarkq_maximum_;
+  return self->sendmarkq_.size() >= self->sendmarkq_maximum_;
 }
 
 int session::handle_recvmarkq_put(struct curvecpr_messager *messager,
@@ -456,7 +465,6 @@ int session::handle_recvmarkq_put(struct curvecpr_messager *messager,
                                   struct curvecpr_block **block_stored)
 {
   session *self = static_cast<session*>(messager->cf.priv);
-  std::unique_lock<std::recursive_mutex> lock(self->mutex_);
 
   // Check if receive queue is full
   if (self->recvmarkq_.size() >= 0 && self->recvmarkq_.size() >= self->recvmarkq_maximum_)
@@ -480,7 +488,6 @@ int session::handle_recvmarkq_get_nth_unacknowledged(struct curvecpr_messager *m
                                                      struct curvecpr_block **block_stored)
 {
   session *self = static_cast<session*>(messager->cf.priv);
-  std::unique_lock<std::recursive_mutex> lock(self->mutex_);
 
   size_t i = 0;
   for (curvecpr_block_status *b : self->recvmarkq_) {
@@ -501,7 +508,6 @@ int session::handle_recvmarkq_get_nth_unacknowledged(struct curvecpr_messager *m
 unsigned char session::handle_recvmarkq_is_empty(struct curvecpr_messager *messager)
 {
   session *self = static_cast<session*>(messager->cf.priv);
-
   return self->recvmarkq_.empty();
 }
 
@@ -510,7 +516,6 @@ int session::handle_recvmarkq_remove_range(struct curvecpr_messager *messager,
                                            unsigned long long end)
 {
   session *self = static_cast<session*>(messager->cf.priv);
-  std::unique_lock<std::recursive_mutex> lock(self->mutex_);
 
   for (auto it = self->recvmarkq_.begin(); it != self->recvmarkq_.end();) {
     auto jt = it;

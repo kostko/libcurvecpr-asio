@@ -48,11 +48,14 @@ public:
                   bool start = false)
   {
     if (!finished_) {
+      // Ensure that this I/O operation is dispatched via the session strand; if it
+      // is not, defer execution via the strand
+      if (!session_.get_strand().running_in_this_thread())
+        return session_.get_strand().dispatch(BOOST_ASIO_MOVE_CAST(io_op)(*this));
+
       session::want result = op_(session_, ec_, bytes_transferred_);
-      if (result != session::want::nothing) {
-        session_.async_pending_wait(result, BOOST_ASIO_MOVE_CAST(io_op)(*this));
-        return;
-      }
+      if (result != session::want::nothing)
+        return session_.async_pending_wait(result, BOOST_ASIO_MOVE_CAST(io_op)(*this));
 
       finished_ = true;
       if (start) {
