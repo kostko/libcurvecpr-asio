@@ -113,8 +113,6 @@ protected:
                                 const unsigned char *buffer,
                                 std::size_t length);
 
-  inline void handle_lower_write(const boost::system::error_code &error, std::size_t bytes);
-
   inline void handle_lower_read(const boost::system::error_code &error, std::size_t bytes);
 protected:
   /**
@@ -169,10 +167,6 @@ private:
   std::unordered_map<std::string, boost::shared_ptr<session>> sessions_;
   /// Server packet processor
   curvecpr_server server_;
-  /// Transmit buffer
-  std::vector<unsigned char> transmit_buffer_;
-  /// Transmit in progress flag
-  bool transmit_in_progress_;
   /// Receive endpoint
   boost::asio::ip::udp::endpoint lower_recv_endpoint_;
   /// Receive buffer space

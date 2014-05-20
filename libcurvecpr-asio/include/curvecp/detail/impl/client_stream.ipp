@@ -23,8 +23,6 @@ client_stream::client_stream(boost::asio::io_service &service)
   : basic_stream(service, session_),
     socket_(service),
     session_(service, session::type::client),
-    transmit_buffer_(2048),
-    transmit_in_progress_(false),
     lower_recv_buffer_(65535),
     hello_timed_out_(service),
     hello_retries_(0)
@@ -138,11 +136,6 @@ void client_stream::handle_upper_send(const unsigned char *buffer, std::size_t l
   curvecpr_client_send(&client_, buffer, length);
 }
 
-void client_stream::handle_lower_write(const boost::system::error_code &error, std::size_t bytes)
-{
-  transmit_in_progress_ = false;
-}
-
 void client_stream::handle_lower_read(const boost::system::error_code &error, std::size_t bytes)
 {
   if (error == boost::asio::error::operation_aborted || error == boost::asio::error::bad_descriptor)
@@ -171,16 +164,14 @@ int client_stream::handle_send(struct curvecpr_client *client,
 {
   client_stream *self = static_cast<client_stream*>(client->cf.priv);
 
-  if (self->transmit_in_progress_)
-    return -1;
-
-  self->transmit_in_progress_ = true;
-  std::memcpy(&self->transmit_buffer_[0], buf, num);
+  boost::shared_ptr<std::vector<unsigned char>> buffer(
+    boost::make_shared<std::vector<unsigned char>>(num));
+  std::memcpy(&(*buffer)[0], buf, num);
 
   // Transmit data
   self->socket_.async_send(
-    boost::asio::buffer(&self->transmit_buffer_[0], num),
-    self->session_.get_strand().wrap(boost::bind(&client_stream::handle_lower_write, self, _1, _2))
+    boost::asio::buffer(&(*buffer)[0], num),
+    self->session_.get_strand().wrap([buffer](const boost::system::error_code&, std::size_t) {})
   );
 
   return 0;

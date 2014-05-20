@@ -110,8 +110,6 @@ protected:
 
   inline void handle_hello_timeout(const boost::system::error_code &error);
 
-  inline void handle_lower_write(const boost::system::error_code &error, std::size_t bytes);
-
   inline void handle_lower_read(const boost::system::error_code &error, std::size_t bytes);
 protected:
   /**
@@ -140,10 +138,6 @@ private:
   boost::asio::ip::udp::socket socket_;
   /// Client packet processor
   curvecpr_client client_;
-  /// Transmit buffer
-  std::vector<unsigned char> transmit_buffer_;
-  /// Transmit in progress flag
-  bool transmit_in_progress_;
   /// Receive buffer space
   std::vector<unsigned char> lower_recv_buffer_;
   /// Timer to resend hello packets when no cookie received

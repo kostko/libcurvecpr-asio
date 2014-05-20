@@ -21,8 +21,6 @@ acceptor::acceptor(boost::asio::io_service &service)
   : strand_(service),
     socket_(service),
     maximum_pending_sessions_(16),
-    transmit_buffer_(2048),
-    transmit_in_progress_(false),
     lower_recv_buffer_(65535),
     pending_ready_accept_(service)
 {
@@ -97,11 +95,6 @@ template <typename Handler>
 void acceptor::async_pending_accept_wait(BOOST_ASIO_MOVE_ARG(Handler) handler)
 {
   pending_ready_accept_.async_wait(strand_.wrap(handler));
-}
-
-void acceptor::handle_lower_write(const boost::system::error_code &error, std::size_t bytes)
-{
-  transmit_in_progress_ = false;
 }
 
 void acceptor::handle_lower_read(const boost::system::error_code &error, std::size_t bytes)
@@ -200,9 +193,6 @@ int acceptor::handle_send(struct curvecpr_server *server,
   acceptor *self = static_cast<acceptor*>(server->cf.priv);
   std::unique_lock<std::recursive_mutex> lock(self->mutex_);
 
-  if (self->transmit_in_progress_)
-    return -1;
-
   boost::asio::ip::udp::endpoint endpoint;
   if (!s->priv) {
     // We are being called while receiving a Hello packet from client,
@@ -213,14 +203,15 @@ int acceptor::handle_send(struct curvecpr_server *server,
     endpoint = static_cast<session*>(s->priv)->get_endpoint();
   }
 
-  self->transmit_in_progress_ = true;
-  std::memcpy(&self->transmit_buffer_[0], buf, num);
+  boost::shared_ptr<std::vector<unsigned char>> buffer(
+    boost::make_shared<std::vector<unsigned char>>(num));
+  std::memcpy(&(*buffer)[0], buf, num);
 
   // Transmit data
   self->socket_.async_send_to(
-    boost::asio::buffer(&self->transmit_buffer_[0], num),
+    boost::asio::buffer(&(*buffer)[0], num),
     endpoint,
-    self->strand_.wrap(boost::bind(&acceptor::handle_lower_write, self, _1, _2))
+    self->strand_.wrap([buffer](const boost::system::error_code&, std::size_t) {})
   );
 
   return 0;
