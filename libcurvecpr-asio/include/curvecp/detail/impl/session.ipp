@@ -474,8 +474,16 @@ int session::handle_recvmarkq_put(struct curvecpr_messager *messager,
   new_block->status = RECVMARKQ_ELEMENT_NONE;
   new_block->block = *block;
 
+  // If we are at EOF, all subsequent received blocks should be marked as
+  // distributed since the reader is not reading anymore and otherwise they
+  // will fill the receive queue and cause the other side to not get ACKs
+  if (self->pending_eof_)
+    new_block->status |= RECVMARKQ_ELEMENT_DISTRIBUTED;
+
   self->recvmarkq_.insert(new_block);
-  self->pending_ready_read_.cancel();
+
+  if (!self->pending_eof_)
+    self->pending_ready_read_.cancel();
 
   if (block_stored)
     *block_stored = &new_block->block;
