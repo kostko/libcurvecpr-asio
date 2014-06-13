@@ -1,6 +1,8 @@
 #include <boost/asio.hpp>
 #include <curvecp/curvecp.hpp>
 #include <botan/auto_rng.h>
+#include <list>
+#include <thread>
 
 class example {
 public:
@@ -100,6 +102,13 @@ int main()
   boost::asio::io_service io_service;
   example ex(io_service);
   ex.start();
-  io_service.run();
+
+  std::list<std::shared_ptr<std::thread>> threads;
+  for (int i = 0; i < 8; i++) {
+    threads.push_back(std::make_shared<std::thread>([&io_service]() { io_service.run(); }));
+  }
+
+  for (auto thread : threads)
+    thread->join();
   return 0;
 }
