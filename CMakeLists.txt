@@ -3,19 +3,15 @@ cmake_minimum_required(VERSION 2.6)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-set(Boost_USE_MULTITHREAD ON)
-set(Boost_USE_STATIC_LIBS OFF)
-
 find_package(Boost 1.55.0 COMPONENTS system date_time REQUIRED)
 find_package(Sodium REQUIRED)
 find_package(CurveCPR REQUIRED)
-find_package(Botan REQUIRED)
+find_package(Botan)
 
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fvisibility=hidden -DBOOST_ALL_DYN_LINK -std=c++0x")
-set(CMAKE_C_FLAGS_RELEASE "-O3 -fvisibility=hidden -DBOOST_ALL_DYN_LINK")
-
-set(CMAKE_CXX_FLAGS_DEBUG "-g3 -fvisibility=hidden -DBOOST_ALL_DYN_LINK -std=c++0x")
-set(CMAKE_C_FLAGS_DEBUG "-g3 -fvisibility=hidden -DBOOST_ALL_DYN_LINK")
+IF(NOT BOTAN_FOUND)
+	SET(BOTAN_INCLUDE_DIR "")
+	SET(BOTAN_LIBRARIES "")
+ENDIF(NOT BOTAN_FOUND)
 
 include_directories(
   # External includes
