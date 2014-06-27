@@ -47,26 +47,26 @@ session::session(boost::asio::io_service &service,
 
   // Configure curvecpr messager handlers
   struct curvecpr_messager_cf messager_cf = {
-    .ops = {
-      .sendq_head = &session::handle_sendq_head,
-      .sendq_move_to_sendmarkq = &session::handle_sendq_move_to_sendmarkq,
-      .sendq_is_empty = &session::handle_sendq_is_empty,
+    {
+      &session::handle_sendq_head,
+      &session::handle_sendq_move_to_sendmarkq,
+      &session::handle_sendq_is_empty,
 
-      .sendmarkq_head = &session::handle_sendmarkq_head,
-      .sendmarkq_get = &session::handle_sendmarkq_get,
-      .sendmarkq_remove_range = &session::handle_sendmarkq_remove_range,
-      .sendmarkq_is_full = &session::handle_sendmarkq_is_full,
+      &session::handle_sendmarkq_head,
+      &session::handle_sendmarkq_get,
+      &session::handle_sendmarkq_remove_range,
+      &session::handle_sendmarkq_is_full,
 
-      .recvmarkq_put = &session::handle_recvmarkq_put,
-      .recvmarkq_get_nth_unacknowledged = &session::handle_recvmarkq_get_nth_unacknowledged,
-      .recvmarkq_is_empty = &session::handle_recvmarkq_is_empty,
-      .recvmarkq_remove_range = &session::handle_recvmarkq_remove_range,
+      &session::handle_recvmarkq_put,
+      &session::handle_recvmarkq_get_nth_unacknowledged,
+      &session::handle_recvmarkq_is_empty,
+      &session::handle_recvmarkq_remove_range,
 
-      .send = &session::handle_send,
+      &session::handle_send,
 
-      .put_next_timeout = nullptr
+      nullptr
     },
-    .priv = this
+    this
   };
 
   // Initialize the curvecpr messager
@@ -327,7 +327,7 @@ int session::handle_sendq_head(struct curvecpr_messager *messager,
     curvecpr_bytes_zero(&self->sendq_head_, sizeof(struct curvecpr_block));
 
     if (!self->pending_.empty()) {
-      int requested = std::min(self->pending_used_, self->messager_.my_maximum_send_bytes);
+      int requested = std::min<size_t>(self->pending_used_, self->messager_.my_maximum_send_bytes);
 
       self->sendq_head_.data_len = requested;
       if (self->pending_current_ + requested > self->pending_maximum_) {

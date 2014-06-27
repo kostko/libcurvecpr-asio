@@ -23,7 +23,7 @@ namespace detail {
 class basic_stream {
 public:
   /// The endpoint type
-  typedef typename boost::asio::ip::udp::socket::endpoint_type endpoint_type;
+  typedef boost::asio::ip::udp::socket::endpoint_type endpoint_type;
 
   /**
    * Constructs an internal CurveCP client stream implementation.
