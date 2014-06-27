@@ -8,8 +8,8 @@
 #  SODIUM_FOUND          - True if libsodium found.
 #
 
-FIND_LIBRARY(SODIUM_LIBRARY NAMES libsodium.so HINTS ${SODIUM_LIB_DIR})
-FIND_PATH(SODIUM_INCLUDE_DIR sodium.h)
+FIND_LIBRARY(SODIUM_LIBRARY NAMES libsodium HINTS ${SODIUM_ROOT_DIR}/lib)
+find_path(SODIUM_INCLUDE_DIR NAMES sodium.h HINTS ${SODIUM_ROOT_DIR}/include)
 
 # handle the QUIETLY and REQUIRED arguments and set SODIUM_FOUND to TRUE if
 # all listed variables are TRUE
