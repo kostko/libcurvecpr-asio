@@ -77,7 +77,7 @@ public:
    *
    * @param endpoint Endpoint to bind to
    */
-  inline void bind(const typename detail::basic_stream::endpoint_type &endpoint);
+  inline void bind(const detail::basic_stream::endpoint_type &endpoint);
 
   /**
    * Starts to listen for new connections.
@@ -96,7 +96,7 @@ public:
   /**
    * Returns the endpoint to which the local socket is bound.
    */
-  inline typename detail::basic_stream::endpoint_type local_endpoint() const;
+  inline detail::basic_stream::endpoint_type local_endpoint() const;
 
   /**
    * Schedules a handler to be executed after the acceptor is ready for

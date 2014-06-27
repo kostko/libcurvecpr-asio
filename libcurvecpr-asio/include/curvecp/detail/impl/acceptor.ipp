@@ -56,7 +56,7 @@ void acceptor::set_local_private_key(const std::string &privateKey)
   std::memcpy(server_.cf.my_global_sk, privateKey.data(), sizeof(server_.cf.my_global_sk));
 }
 
-void acceptor::bind(const typename detail::basic_stream::endpoint_type &endpoint)
+void acceptor::bind(const detail::basic_stream::endpoint_type &endpoint)
 {
   socket_.open(endpoint.protocol());
   socket_.bind(endpoint);
@@ -72,7 +72,7 @@ void acceptor::listen()
   );
 }
 
-typename detail::basic_stream::endpoint_type acceptor::local_endpoint() const
+detail::basic_stream::endpoint_type acceptor::local_endpoint() const
 {
   return socket_.local_endpoint();
 }
@@ -153,7 +153,7 @@ int acceptor::handle_put_session(struct curvecpr_server *server,
   sp->set_endpoint(self->lower_recv_endpoint_);
   // Store session under its public key
   std::string sessionKey((const char*) sp->session_.their_session_pk, 32);
-  self->sessions_.insert({{ sessionKey, sp }});
+  self->sessions_.insert(std::pair<std::string, boost::shared_ptr<session>>{ sessionKey, sp });
   sp->set_close_handler(boost::bind(&acceptor::handle_session_close, self, sessionKey));
   // Put session parameters into the pending session queue
   self->pending_sessions_.push_back(sp);
