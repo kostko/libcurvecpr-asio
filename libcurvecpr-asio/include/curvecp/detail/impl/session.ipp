@@ -216,7 +216,7 @@ bool session::read(const boost::asio::mutable_buffer &data,
     if ((*jt)->block.offset <= recvmarkq_distributed_) {
       if ((*jt)->block.data_len > 0 && (*jt)->block.offset + (*jt)->block.data_len > recvmarkq_distributed_) {
         std::uint64_t idx = recvmarkq_distributed_ - (*jt)->block.offset;
-        size_t len = (*jt)->block.data_len - idx;
+        size_t len = static_cast<size_t>((*jt)->block.data_len - idx);
 
         bool should_break = false;
         if (len > buffer_length - recvmarkq_read_offset_) {
@@ -291,7 +291,7 @@ bool session::write(const boost::asio::const_buffer &data,
 
   if (pending_next_ + buffer_length > pending_maximum_) {
     // Two writes; one at the end and one at the beginning
-    int avail = pending_maximum_ - pending_next_;
+    int avail = static_cast<int>(pending_maximum_ - pending_next_);
 
     std::memcpy(&pending_[0] + pending_next_, buffer, avail);
     std::memcpy(&pending_[0], buffer + avail, buffer_length - avail);
@@ -332,7 +332,7 @@ int session::handle_sendq_head(struct curvecpr_messager *messager,
       self->sendq_head_.data_len = requested;
       if (self->pending_current_ + requested > self->pending_maximum_) {
         // Two reads, one from the end and one from the beginning
-        int avail = self->pending_maximum_ - self->pending_current_;
+        int avail = static_cast<int>(self->pending_maximum_ - self->pending_current_);
 
         std::memcpy(self->sendq_head_.data, &self->pending_[0] + self->pending_current_, avail);
         std::memcpy(self->sendq_head_.data + avail, &self->pending_[0], requested - avail);
