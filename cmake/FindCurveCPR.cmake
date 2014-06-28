@@ -8,7 +8,7 @@
 #  CURVECPR_FOUND          - True if libcurvecpr found.
 #
 
-FIND_LIBRARY(CURVECPR_LIBRARY NAMES libcurvecpr HINTS ${CURVECPR_ROOT_DIR}/lib)
+FIND_LIBRARY(CURVECPR_LIBRARY NAMES curvecpr libcurvecpr HINTS ${CURVECPR_ROOT_DIR}/lib)
 find_path(CURVECPR_INCLUDE_DIR NAMES curvecpr.h HINTS ${CURVECPR_ROOT_DIR}/include)
 
 # handle the QUIETLY and REQUIRED arguments and set CURVECPR_FOUND to TRUE if
