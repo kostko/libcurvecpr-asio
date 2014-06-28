@@ -36,7 +36,7 @@ public:
   friend class curvecp::detail::acceptor;
 
   /// CurveCP endpoint type
-  typedef typename curvecp::detail::basic_stream::endpoint_type endpoint;
+  typedef curvecp::detail::basic_stream::endpoint_type endpoint;
 
   /**
    * Constructs a CurveCP client stream.
@@ -118,7 +118,7 @@ public:
    *
    * @param endpoint Endpoint to bind to
    */
-  void bind(const typename detail::basic_stream::endpoint_type &endpoint) { stream_->bind(endpoint); }
+  void bind(const detail::basic_stream::endpoint_type &endpoint) { stream_->bind(endpoint); }
 
   /**
    * Connects the underlying UDP socket with a specific remote endpoint and
