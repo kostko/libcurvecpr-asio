@@ -215,7 +215,7 @@ bool session::read(const boost::asio::mutable_buffer &data,
 
     if ((*jt)->block.offset <= recvmarkq_distributed_) {
       if ((*jt)->block.data_len > 0 && (*jt)->block.offset + (*jt)->block.data_len > recvmarkq_distributed_) {
-        size_t idx = (size_t) (recvmarkq_distributed_ - (*jt)->block.offset);
+        std::uint64_t idx = recvmarkq_distributed_ - (*jt)->block.offset;
         size_t len = (*jt)->block.data_len - idx;
 
         bool should_break = false;

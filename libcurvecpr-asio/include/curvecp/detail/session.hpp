@@ -284,11 +284,11 @@ private:
   /// Pending close marker
   bool pending_close_;
   /// Amount of pending buffer used
-  std::size_t pending_used_;
+  std::uint64_t pending_used_;
   /// Amount of buffer pending for inclusion into block
-  std::size_t pending_current_;
+  std::uint64_t pending_current_;
   /// Amount of buffer pending for inclusion into next block
-  std::size_t pending_next_;
+  std::uint64_t pending_next_;
   /// True when a head block exists for sending
   bool sendq_head_exists_;
   /// Head block for sending
