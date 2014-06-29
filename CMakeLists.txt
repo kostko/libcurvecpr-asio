@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 2.6)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 set(Boost_USE_MULTITHREAD ON)
-set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_STATIC_LIBS OFF)
 
 if(Boost_USE_STATIC_LIBS)
 	find_package(Boost 1.55.0 COMPONENTS system date_time regex REQUIRED)
