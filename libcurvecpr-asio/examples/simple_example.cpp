@@ -1,7 +1,7 @@
 #include <curvecp/curvecp.hpp>
 #include <boost/asio/write.hpp>
-#include <botan/auto_rng.h>
 #include <list>
+#include <sodium.h>
 
 class example {
 public:
@@ -20,7 +20,7 @@ public:
     stream_.set_remote_extension(std::string("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16));
     stream_.set_remote_public_key(std::string("\x3f\x56\xfd\x60\x4f\x31\x57\x5d\x1f\xa8\xd2\x4\x2e\x8a\xd7\xe1\x1e\x8a\x51\x64\xf0\x79\xb7\x63\x63\x14\xcd\x52\x9e\x7a\x9a\x19", 32));
     stream_.set_remote_domain_name("test.server");
-    stream_.set_nonce_generator(boost::bind(&Botan::AutoSeeded_RNG::randomize, &rng_, _1, _2));
+	stream_.set_nonce_generator(randombytes);
   }
 
   void start()
@@ -118,8 +118,6 @@ public:
     );
   }
 private:
-  /// Random number generator
-  Botan::AutoSeeded_RNG rng_;
   /// ASIO I/O service
   boost::asio::io_service &service_;
   /// Client identifier
@@ -141,7 +139,7 @@ int main()
   boost::asio::io_service io_service;
 
   std::list<std::shared_ptr<example>> clients;
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 1; i++) {
     auto client = std::make_shared<example>(io_service, i);
     clients.push_back(client);
     client->start();
