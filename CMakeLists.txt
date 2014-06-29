@@ -4,9 +4,13 @@ cmake_minimum_required(VERSION 2.6)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 set(Boost_USE_MULTITHREAD ON)
-set(Boost_USE_STATIC_LIBS OFF)
+set(Boost_USE_STATIC_LIBS ON)
 
-find_package(Boost 1.55.0 COMPONENTS system date_time regex REQUIRED)
+if(Boost_USE_STATIC_LIBS)
+	find_package(Boost 1.55.0 COMPONENTS system date_time regex REQUIRED)
+else(Boost_USE_STATIC_LIBS)
+	find_package(Boost 1.55.0 COMPONENTS system date_time REQUIRED)
+endif(Boost_USE_STATIC_LIBS)
 find_package(Sodium REQUIRED)
 find_package(CurveCPR REQUIRED)
 
