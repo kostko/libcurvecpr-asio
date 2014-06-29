@@ -26,7 +26,7 @@ endif(CMAKE_COMPILER_IS_GNUCC)
 
 if(MSVC AND NOT Boost_USE_STATIC_LIBS)
 	add_definitions(-DBOOST_ALL_NO_LIB)
-endif(MSVC AND NOT BOOST_STATIC)
+endif(MSVC AND NOT Boost_USE_STATIC_LIBS)
 
 include_directories(
   # External includes
