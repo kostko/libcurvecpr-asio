@@ -4,7 +4,7 @@ Boost.ASIO header-only bindings for libcurvecpr.
 
 ## Installation
 
-Requires a patched version of libcurvecpr from [kostko/libcurvecpr](https://github.com/kostko/libcurvecpr). The Botan crypto library for C++ is required to compile examples, but is not required to actually use libcurvecpr-asio.
+Requires a patched version of libcurvecpr from [kostko/libcurvecpr](https://github.com/kostko/libcurvecpr).
 
 Assuming default library and installation locations, the bindings can be installed by using:
 
