@@ -1,8 +1,8 @@
 #include <boost/asio.hpp>
 #include <curvecp/curvecp.hpp>
-#include <botan/auto_rng.h>
 #include <list>
 #include <thread>
+#include <sodium.h>
 
 class connection {
 public:
@@ -34,7 +34,7 @@ public:
     acceptor_.set_local_extension(std::string("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16));
     acceptor_.set_local_public_key(std::string("\x3f\x56\xfd\x60\x4f\x31\x57\x5d\x1f\xa8\xd2\x4\x2e\x8a\xd7\xe1\x1e\x8a\x51\x64\xf0\x79\xb7\x63\x63\x14\xcd\x52\x9e\x7a\x9a\x19", 32));
     acceptor_.set_local_private_key(std::string("\x7a\xa4\x43\x11\x13\x5f\xb8\xe9\x1c\x3e\x2\xd3\x88\xa\x36\xce\xd0\xd8\x79\x99\x9b\xc5\xf7\x8e\x49\x90\x97\xe4\xdf\x6b\x6d\xa9", 32));
-    acceptor_.set_nonce_generator(boost::bind(&Botan::AutoSeeded_RNG::randomize, &rng_, _1, _2));
+    acceptor_.set_nonce_generator(randombytes);
   }
 
   void start()
@@ -113,8 +113,6 @@ public:
     );
   }
 private:
-  /// Random number generator
-  Botan::AutoSeeded_RNG rng_;
   /// ASIO I/O service
   boost::asio::io_service &service_;
   /// CurveCP acceptor
